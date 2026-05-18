@@ -1,0 +1,430 @@
+:root {
+  --primary-color: #3b82f6;
+  --primary-hover: #2563eb;
+  --danger-color: #ef4444;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --bg-color: #f8fafc;
+  --bg-start: #f8fafc;
+  --bg-end: #eef2f7;
+  --card-bg: #ffffff;
+  --border-color: #e2e8f0;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --shadow-color: rgba(15, 23, 42, 0.08);
+  --hero-start: #1e293b;
+  --hero-end: #334155;
+  --hero-text: #f8fafc;
+  --hero-muted: rgba(226, 232, 240, 0.92);
+  --hero-shadow: rgba(15, 23, 42, 0.18);
+  --hero-control-bg: rgba(255, 255, 255, 0.08);
+  --hero-control-border: rgba(226, 232, 240, 0.26);
+  --hero-control-text: #f8fafc;
+  --hero-control-hover-bg: rgba(255, 255, 255, 0.16);
+  --hero-control-hover-border: rgba(226, 232, 240, 0.4);
+  --nav-link-bg: #ffffff;
+  --nav-link-border: #e2e8f0;
+  --nav-link-hover-bg: #f8fafc;
+  --nav-link-hover-border: #cbd5e1;
+  --api-bg-start: #1e293b;
+  --api-bg-end: #0f172a;
+  --control-height: 2.2rem;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+:root[data-theme='dark'] {
+  --primary-color: #60a5fa;
+  --primary-hover: #3b82f6;
+  --bg-color: #020617;
+  --bg-start: #020617;
+  --bg-end: #0f172a;
+  --card-bg: #0f172a;
+  --border-color: #334155;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --input-bg: #0f172a;
+  --input-border: #475569;
+  --shadow-color: rgba(2, 6, 23, 0.4);
+  --hero-start: #020617;
+  --hero-end: #1e293b;
+  --hero-text: #f8fafc;
+  --hero-muted: rgba(226, 232, 240, 0.82);
+  --hero-shadow: rgba(2, 6, 23, 0.45);
+  --hero-control-bg: rgba(15, 23, 42, 0.55);
+  --hero-control-border: rgba(148, 163, 184, 0.32);
+  --hero-control-text: #e2e8f0;
+  --hero-control-hover-bg: rgba(30, 41, 59, 0.9);
+  --hero-control-hover-border: rgba(148, 163, 184, 0.46);
+  --nav-link-bg: #0f172a;
+  --nav-link-border: #334155;
+  --nav-link-hover-bg: #1e293b;
+  --nav-link-hover-border: #475569;
+  --api-bg-start: #020617;
+  --api-bg-end: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 1.25rem;
+  background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+.surface {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px var(--shadow-color);
+}
+
+.api-shell {
+  padding: 1rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.1rem;
+}
+
+.toolbar h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.toolbar p {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.button-primary,
+.button-secondary,
+.inline-link {
+  border-radius: 8px;
+  padding: 0.68rem 0.95rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.button-primary {
+  border: 0;
+  background: var(--primary-color);
+  color: #ffffff;
+}
+
+.button-secondary,
+.inline-link {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.button-primary:hover,
+.button-primary:focus-visible,
+.button-secondary:hover,
+.button-secondary:focus-visible,
+.inline-link:hover,
+.inline-link:focus-visible {
+  transform: translateY(-1px);
+}
+
+.button-primary:hover,
+.button-primary:focus-visible {
+  background: var(--primary-hover);
+}
+
+.button-secondary:hover,
+.button-secondary:focus-visible,
+.inline-link:hover,
+.inline-link:focus-visible {
+  background: var(--bg-color);
+  border-color: var(--input-border);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-color);
+}
+
+.view-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.overview-span-2 {
+  grid-column: span 2;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.9rem;
+}
+
+.stat-card,
+.section-card {
+  padding: 1rem;
+}
+
+.stat-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stat-value {
+  margin-top: 0.3rem;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.section-header p {
+  margin: 0.18rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.subsection-block {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1.15rem;
+}
+
+.subsection-block:first-of-type {
+  margin-top: 1rem;
+}
+
+.subsection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.subsection-header h3 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.subsection-header p {
+  margin: 0.18rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.metric-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.metric-table th,
+.metric-table td {
+  padding: 0.65rem 0.4rem;
+  text-align: left;
+  border-top: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.metric-table th {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 0.8rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--primary-color);
+}
+
+.pill.success {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success-color);
+}
+
+.pill.warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--warning-color);
+}
+
+.pill.danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger-color);
+}
+
+.state-box {
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.state-box h2 {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.state-box p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.api-viewer {
+  overflow: auto;
+  max-height: 36rem;
+  margin: 0;
+  padding: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+  background: linear-gradient(180deg, var(--api-bg-start) 0%, var(--api-bg-end) 100%);
+  border-radius: 8px;
+}
+
+.select {
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.select-compact {
+  height: var(--control-height);
+  padding: 0 0.75rem;
+}
+
+.language-selector {
+  gap: 0.45rem;
+}
+
+.language-selector span {
+  font-size: 0.9rem;
+}
+
+.select:disabled {
+  opacity: 0.65;
+}
+
+@media (max-width: 1100px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-span-2 {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  body {
+    padding: 1rem;
+  }
+
+  .metric-table,
+  .metric-table tbody,
+  .metric-table tr,
+  .metric-table td,
+  .metric-table th {
+    display: block;
+  }
+
+  .metric-table thead {
+    display: none;
+  }
+
+  .metric-table tr {
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .metric-table td {
+    padding: 0.25rem 0;
+    border: 0;
+  }
+}

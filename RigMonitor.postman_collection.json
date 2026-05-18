@@ -1,0 +1,341 @@
+{
+  "info": {
+    "_postman_id": "8d4924cb-35f5-4a41-9225-3ea16518f1ac",
+    "name": "RigMonitor",
+    "description": "# RigMonitor Postman Collection\n\nThis collection targets the local RigMonitor daemon and documents the same-port API and dashboard surface.\n\n## Default Variables\n\n- `baseUrl`: full server URL, default `http://127.0.0.1:9000`\n- `livezPath`: liveness endpoint\n- `readyzPath`: readiness endpoint\n- `capabilitiesPath`: runtime capability endpoint\n- `telemetryPath`: telemetry snapshot endpoint\n- `telemetrySelectiveQuery`: selector example for partial collection\n- `openApiJsonPath`: raw OpenAPI document\n- `openApiUiPath`: Swagger UI route\n- `dashboardPath`: dashboard SPA route\n- `faviconPath`: dashboard favicon route\n\nImport the collection, make sure `baseUrl` matches the daemon listener you started, and then run the requests.\n\n## Response Casing\n\n- Response property names are camelCase.\n- RigMonitor-owned classification values are camelCase strings, for example `windows`, `x64`, `wireless80211`, `up`, and `fixed`.\n- Upstream opaque strings are preserved as provided, for example Ollama quantization labels such as `Q4_K_M`.\n\n## Telemetry Selector Rules\n\n`GET /v1/telemetry` accepts optional query keys for section selection:\n\n- `system`\n- `cpu`\n- `memory`\n- `network`\n- `disk`\n- `gpu`\n- `ollama`\n\nRules:\n\n- If no recognized selector keys are present, **all sections are included by default**.\n- If a selector key is present without a value, it is treated as `true`.\n- If a selector key is present as `=false`, it is treated as `false`.\n- Once one or more recognized selector keys are present, unspecified recognized sections are treated as `false`.\n\nExample:\n\n`/v1/telemetry?cpu&memory&network&gpu=false`\n\nThis includes `cpu`, `memory`, and `network`, explicitly excludes `gpu`, and omits other recognized sections.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "Basic daemon health probes.",
+      "item": [
+        {
+          "name": "GET /livez",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns Watson liveness for the RigMonitor process. This should return HTTP `200` when the service is up and listening.",
+            "url": "{{baseUrl}}{{livezPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /readyz",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns readiness for telemetry collection. During warmup this may return HTTP `503`; once warm, it returns HTTP `200` with a JSON payload containing `status`, `ready`, `message`, and `timestampUtc`.",
+            "url": "{{baseUrl}}{{readyzPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 503', function () {",
+                  "    pm.expect([200, 503]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('ready');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Telemetry",
+      "description": "RigMonitor telemetry endpoints.",
+      "item": [
+        {
+          "name": "GET /v1/capabilities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns runtime feature flags and startup probe results, including `hostPlatform`, `dashboardEnabled`, `telemetryWarm`, `nvidiaAvailable`, and `ollamaAvailable`. RigMonitor-owned classification values are returned as camelCase strings.",
+            "url": "{{baseUrl}}{{capabilitiesPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.collectionVariables.set('lastHostPlatform', String(body.hostPlatform || ''));",
+                  "pm.collectionVariables.set('lastNvidiaAvailable', String(body.nvidiaAvailable || false));",
+                  "pm.collectionVariables.set('lastOllamaAvailable', String(body.ollamaAvailable || false));",
+                  "pm.test('Capabilities payload contains expected flags', function () {",
+                  "    pm.expect(body).to.have.property('dashboardEnabled');",
+                  "    pm.expect(body).to.have.property('telemetryWarm');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/telemetry (All Sections)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Collects and returns the default full telemetry snapshot. Because no recognized selector keys are supplied, all sections are included by default. Response property names are camelCase, and RigMonitor-owned classification values use camelCase strings.",
+            "url": "{{baseUrl}}{{telemetryPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.collectionVariables.set('lastTelemetryCollectedUtc', String(body.collectedUtc || ''));",
+                  "pm.test('Telemetry payload contains default core sections', function () {",
+                  "    pm.expect(body).to.have.property('system');",
+                  "    pm.expect(body).to.have.property('cpu');",
+                  "    pm.expect(body).to.have.property('memory');",
+                  "    pm.expect(body).to.have.property('network');",
+                  "    pm.expect(body).to.have.property('disk');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/telemetry (Selective Example)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Collects a partial telemetry snapshot using selector keys. This example includes `cpu`, `memory`, and `network`, explicitly disables `gpu`, and omits other recognized sections because at least one selector key is present.",
+            "url": "{{baseUrl}}{{telemetryPath}}{{telemetrySelectiveQuery}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test('Requested sections are present', function () {",
+                  "    pm.expect(body).to.have.property('cpu');",
+                  "    pm.expect(body).to.have.property('memory');",
+                  "    pm.expect(body).to.have.property('network');",
+                  "});",
+                  "pm.test('Unrequested sections are omitted', function () {",
+                  "    pm.expect(body).to.not.have.property('system');",
+                  "    pm.expect(body).to.not.have.property('disk');",
+                  "    pm.expect(body).to.not.have.property('gpu');",
+                  "    pm.expect(body).to.not.have.property('ollama');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OpenAPI",
+      "description": "OpenAPI document and UI endpoints exposed by Watson 7.",
+      "item": [
+        {
+          "name": "GET /openapi.json",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns the generated OpenAPI JSON document for the RigMonitor API surface.",
+            "url": "{{baseUrl}}{{openApiJsonPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response contains OpenAPI version', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('openapi');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /openapi",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns the Swagger UI HTML for the generated OpenAPI document.",
+            "url": "{{baseUrl}}{{openApiUiPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "description": "Same-port dashboard assets.",
+      "item": [
+        {
+          "name": "GET /dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns the built dashboard SPA HTML when `Dashboard.Enabled = true`. When the dashboard is disabled, this route should return `404`.",
+            "url": "{{baseUrl}}{{dashboardPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 404', function () {",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /favicon.ico",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns the dashboard favicon sourced from `assets/icon.ico` when the dashboard is enabled.",
+            "url": "{{baseUrl}}{{faviconPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 404', function () {",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:9000",
+      "type": "string"
+    },
+    {
+      "key": "livezPath",
+      "value": "/livez",
+      "type": "string"
+    },
+    {
+      "key": "readyzPath",
+      "value": "/readyz",
+      "type": "string"
+    },
+    {
+      "key": "capabilitiesPath",
+      "value": "/v1/capabilities",
+      "type": "string"
+    },
+    {
+      "key": "telemetryPath",
+      "value": "/v1/telemetry",
+      "type": "string"
+    },
+    {
+      "key": "telemetrySelectiveQuery",
+      "value": "?cpu&memory&network&gpu=false",
+      "type": "string"
+    },
+    {
+      "key": "openApiJsonPath",
+      "value": "/openapi.json",
+      "type": "string"
+    },
+    {
+      "key": "openApiUiPath",
+      "value": "/openapi",
+      "type": "string"
+    },
+    {
+      "key": "dashboardPath",
+      "value": "/dashboard",
+      "type": "string"
+    },
+    {
+      "key": "faviconPath",
+      "value": "/favicon.ico",
+      "type": "string"
+    },
+    {
+      "key": "lastHostPlatform",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lastNvidiaAvailable",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lastOllamaAvailable",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lastTelemetryCollectedUtc",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

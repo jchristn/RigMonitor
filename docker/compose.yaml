@@ -1,0 +1,11 @@
+services:
+  rigmonitor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: rigmonitor
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

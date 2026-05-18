@@ -1,0 +1,49 @@
+{
+  "createdUtc": "2026-05-18T00:00:00Z",
+  "webserver": {
+    "hostname": "localhost",
+    "port": 9000,
+    "ssl": false,
+    "cors": {
+      "enabled": true,
+      "allowedOrigins": [
+        "*"
+      ],
+      "allowedMethods": [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "OPTIONS",
+        "HEAD"
+      ],
+      "allowedHeaders": [
+        "Content-Type",
+        "Authorization",
+        "X-Api-Key"
+      ],
+      "maxAgeSeconds": 86400
+    }
+  },
+  "telemetry": {
+    "dcgmExporterUrl": "http://localhost:9400/metrics",
+    "ollamaBaseUrl": "http://localhost:11434",
+    "requestTimeoutMs": 5000,
+    "warmupDelayMs": 1000
+  },
+  "dashboard": {
+    "enabled": true,
+    "title": "RigMonitor Dashboard",
+    "autoRefreshIntervalMs": 5000
+  },
+  "logging": {
+    "servers": [],
+    "logDirectory": "data/logs",
+    "logFilename": "rigmonitor.log",
+    "fileLogging": true,
+    "includeDateInFilename": true,
+    "consoleLogging": true,
+    "enableColors": true,
+    "minimumSeverity": "Info"
+  }
+}

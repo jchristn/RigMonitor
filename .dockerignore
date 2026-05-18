@@ -1,0 +1,6 @@
+.git
+.gitignore
+**/bin
+**/obj
+dashboard/node_modules
+docker/data
