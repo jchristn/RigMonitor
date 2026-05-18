@@ -2,6 +2,7 @@ namespace RigMonitor.Server
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -68,6 +69,7 @@ namespace RigMonitor.Server
         {
             RigMonitorSettings settings = await SettingsManager.LoadAsync(settingsFile, cancellationToken).ConfigureAwait(false);
             AppLogger logger = new AppLogger(settings.Logging);
+            logger.Debug("Startup initialization began using settings file " + Path.GetFullPath(settingsFile));
 
             IDcgmExporterClient dcgmClient = new DcgmExporterClient(settings.Telemetry);
             IOllamaClient ollamaClient = new OllamaClient(settings.Telemetry);
@@ -97,6 +99,7 @@ namespace RigMonitor.Server
             StaticFileHandler staticFileHandler = new StaticFileHandler(settings, logger);
             RigMonitorServer host = new RigMonitorServer(settings, logger, telemetryService, runtimeCapabilitiesService, staticFileHandler);
 
+            logger.Debug("Startup initialization complete.");
             logger.Info("Settings loaded from " + settingsFile);
             logger.Info("Runtime platform: " + runtimeCapabilitiesService.Current.HostPlatform);
             logger.Info("DCGM available: " + runtimeCapabilitiesService.Current.NvidiaAvailable);
@@ -143,12 +146,15 @@ namespace RigMonitor.Server
                 return;
             }
 
+            _Logger.Debug("Shutdown sequence starting.");
+
             if (Server.IsListening)
             {
                 Server.Stop();
             }
 
             _Logger.Info("RigMonitor stopped");
+            _Logger.Debug("Shutdown sequence complete.");
         }
 
         private void ConfigureServer()
@@ -175,7 +181,7 @@ namespace RigMonitor.Server
         private void ConfigureRoutes()
         {
             new GeneralRoutes(_TelemetryService, _RuntimeCapabilitiesService).Register(Server);
-            new TelemetryRoutes(_TelemetryService).Register(Server);
+            new TelemetryRoutes(_TelemetryService, _Logger).Register(Server);
 
             if (Settings.Dashboard.Enabled)
             {
@@ -195,6 +201,11 @@ namespace RigMonitor.Server
         {
             context.Timestamp.End = DateTime.UtcNow;
             ApplyCorsHeaders(context);
+
+            if (String.Equals(context.Request.Url.RawWithoutQuery, "/v1/telemetry", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.CompletedTask;
+            }
 
             string duration = context.Timestamp.TotalMs.HasValue
                 ? context.Timestamp.TotalMs.Value.ToString("F2")
