@@ -63,7 +63,7 @@ Rules:
 Example:
 
 ```text
-http://127.0.0.1:9000/v1/telemetry?cpu&memory&network&gpu=false
+http://127.0.0.1:9990/v1/telemetry?cpu&memory&network&gpu=false
 ```
 
 All API response property names are camelCase. RigMonitor-owned classification values are also emitted as camelCase strings, for example `windows`, `x64`, `wireless80211`, `up`, and `fixed`. Upstream opaque strings such as Ollama quantization labels are passed through as provided.
@@ -86,8 +86,8 @@ All API response property names are camelCase. RigMonitor-owned classification v
 
 3. Open:
 
-- Dashboard: `http://localhost:9000/dashboard`
-- OpenAPI UI: `http://localhost:9000/openapi`
+- Dashboard: `http://localhost:9990/dashboard`
+- OpenAPI UI: `http://localhost:9990/openapi`
 
 ## Settings
 

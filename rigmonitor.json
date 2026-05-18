@@ -2,7 +2,7 @@
   "createdUtc": "2026-05-18T00:00:00Z",
   "webserver": {
     "hostname": "localhost",
-    "port": 9000,
+    "port": 9990,
     "ssl": false,
     "cors": {
       "enabled": true,

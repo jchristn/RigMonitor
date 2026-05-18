@@ -5,7 +5,7 @@ services:
       dockerfile: docker/Dockerfile
     container_name: rigmonitor
     ports:
-      - "9000:9000"
+      - "9990:9990"
     volumes:
       - ./data:/app/data
     restart: unless-stopped

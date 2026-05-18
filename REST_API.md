@@ -5,7 +5,7 @@
 By default the daemon listens on:
 
 ```text
-http://127.0.0.1:9000
+http://127.0.0.1:9990
 ```
 
 If you change `Webserver.Hostname`, `Webserver.Port`, or `Webserver.Ssl` in `rigmonitor.json`, adjust the base URL accordingly.

@@ -38,6 +38,6 @@ namespace RigMonitor.Core.Settings
         /// </summary>
         public CorsSettings Cors { get; set; } = new CorsSettings();
 
-        private int _Port = 9000;
+        private int _Port = 9990;
     }
 }
