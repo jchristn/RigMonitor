@@ -181,7 +181,7 @@ namespace RigMonitor.Server
         private void ConfigureRoutes()
         {
             new GeneralRoutes(_TelemetryService, _RuntimeCapabilitiesService).Register(Server);
-            new TelemetryRoutes(_TelemetryService, _Logger).Register(Server);
+            new TelemetryRoutes(_TelemetryService).Register(Server);
 
             if (Settings.Dashboard.Enabled)
             {
@@ -201,11 +201,6 @@ namespace RigMonitor.Server
         {
             context.Timestamp.End = DateTime.UtcNow;
             ApplyCorsHeaders(context);
-
-            if (String.Equals(context.Request.Url.RawWithoutQuery, "/v1/telemetry", StringComparison.OrdinalIgnoreCase))
-            {
-                return Task.CompletedTask;
-            }
 
             string duration = context.Timestamp.TotalMs.HasValue
                 ? context.Timestamp.TotalMs.Value.ToString("F2")

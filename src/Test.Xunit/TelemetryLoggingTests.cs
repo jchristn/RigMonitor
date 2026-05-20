@@ -20,7 +20,7 @@ namespace Test.Xunit
     public class TelemetryLoggingTests
     {
         /// <summary>
-        /// Verify startup, shutdown, and telemetry request debug messages are emitted.
+        /// Verify startup, shutdown, and telemetry summary debug messages are emitted.
         /// </summary>
         [Fact]
         public async Task ShouldEmitLifecycleAndTelemetryDebugLogs()
@@ -75,10 +75,9 @@ namespace Test.Xunit
 
                 Assert.Contains("Startup initialization began using settings file " + Path.GetFullPath(settingsFile), logContents);
                 Assert.Contains("Startup initialization complete.", logContents);
-                Assert.Contains("Telemetry request received: GET " + requestPath, logContents);
                 Assert.True(
-                    Regex.IsMatch(logContents, @"Telemetry response sent: 200 GET /v1/telemetry\?cpu&memory \(\d+(\.\d{1,2})?ms\)"),
-                    "Expected telemetry response debug log with elapsed milliseconds.");
+                    Regex.IsMatch(logContents, @"GET /v1/telemetry\?cpu&memory 200 \(\d+(\.\d{2})?ms\)"),
+                    "Expected telemetry summary debug log with elapsed milliseconds.");
                 Assert.Contains("Shutdown sequence starting.", logContents);
                 Assert.Contains("Shutdown sequence complete.", logContents);
             }

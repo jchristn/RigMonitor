@@ -1,8 +1,6 @@
 namespace RigMonitor.Server.Routes
 {
     using System;
-    using System.Diagnostics;
-    using System.Globalization;
     using System.Threading.Tasks;
     using RigMonitor.Core.Models;
     using RigMonitor.Core.Services.Interfaces;
@@ -17,17 +15,14 @@ namespace RigMonitor.Server.Routes
     public class TelemetryRoutes
     {
         private readonly ITelemetryService _TelemetryService;
-        private readonly AppLogger _Logger;
 
         /// <summary>
         /// Instantiate the registrar.
         /// </summary>
         /// <param name="telemetryService">Telemetry service.</param>
-        /// <param name="logger">Application logger.</param>
-        public TelemetryRoutes(ITelemetryService telemetryService, AppLogger logger)
+        public TelemetryRoutes(ITelemetryService telemetryService)
         {
             _TelemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
-            _Logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
@@ -48,27 +43,12 @@ namespace RigMonitor.Server.Routes
         private async Task TelemetryRouteAsync(HttpContextBase context)
         {
             string rawWithQuery = context.Request.Url.RawWithQuery ?? "/v1/telemetry";
-            _Logger.Debug("Telemetry request received: " + context.Request.Method + " " + rawWithQuery);
-
-            Stopwatch stopwatch = Stopwatch.StartNew();
             TelemetryRequestOptions requestOptions = TelemetryRequestParser.Parse(rawWithQuery);
 
             await HttpResponder.WriteJsonAsync(
                 context,
                 await _TelemetryService.GetSnapshotAsync(requestOptions, context.Token).ConfigureAwait(false),
                 200).ConfigureAwait(false);
-
-            stopwatch.Stop();
-            _Logger.Debug(
-                "Telemetry response sent: "
-                + context.Response.StatusCode
-                + " "
-                + context.Request.Method
-                + " "
-                + rawWithQuery
-                + " ("
-                + stopwatch.Elapsed.TotalMilliseconds.ToString("0.##", CultureInfo.InvariantCulture)
-                + "ms)");
         }
     }
 }
