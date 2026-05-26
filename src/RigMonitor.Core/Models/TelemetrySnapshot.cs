@@ -62,5 +62,10 @@ namespace RigMonitor.Core.Models
         /// Ollama telemetry when available.
         /// </summary>
         public OllamaTelemetry? Ollama { get; set; } = null;
+
+        /// <summary>
+        /// Collection metadata for each telemetry section.
+        /// </summary>
+        public TelemetryCollectionMetadata? Collection { get; set; } = null;
     }
 }

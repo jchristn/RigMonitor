@@ -63,3 +63,20 @@ export function formatDateTime(value) {
     timeStyle: 'short',
   }).format(new Date(value))
 }
+
+export function formatElapsedMs(value) {
+  if (value == null || Number.isNaN(value)) {
+    return '—'
+  }
+
+  if (value < 1000) {
+    return `${formatNumber(value, { maximumFractionDigits: 0 })} ms`
+  }
+
+  const seconds = value / 1000
+  if (seconds < 60) {
+    return `${formatNumber(seconds, { maximumFractionDigits: 1 })} s`
+  }
+
+  return formatDuration(value)
+}

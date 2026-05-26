@@ -15,7 +15,8 @@ If you change `Webserver.Hostname`, `Webserver.Port`, or `Webserver.Ssl` in `rig
 - Response property names are camelCase.
 - RigMonitor-owned classification values are emitted as camelCase strings.
 - Timestamps are UTC ISO 8601 strings.
-- Optional sections are omitted from telemetry responses when not requested or not available.
+- Optional sections are omitted from telemetry responses when not requested or when no current sample is available.
+- `/v1/telemetry` includes a top-level `collection` object so clients can distinguish intentionally omitted data from unhealthy or unsupported sections.
 
 Examples of normalized values:
 
@@ -82,6 +83,7 @@ Top-level fields:
 - `hostPlatform`
 - `nvidiaAvailable`
 - `ollamaAvailable`
+- `collection`
 - `system`
 - `cpu`
 - `memory`
@@ -98,6 +100,34 @@ Example:
   "hostPlatform": "windows",
   "nvidiaAvailable": false,
   "ollamaAvailable": true,
+  "collection": {
+    "collectedUtc": "2026-05-18T14:12:13.6414917Z",
+    "staleAfterMs": 15000,
+    "system": {
+      "requested": true,
+      "supported": true,
+      "statusCode": "ok",
+      "lastAttemptUtc": "2026-05-18T14:12:13.6414917Z",
+      "lastSuccessUtc": "2026-05-18T14:12:13.6414917Z",
+      "lastDurationMs": 3.2,
+      "freshness": {
+        "status": "fresh",
+        "ageMs": 0,
+        "staleAfterMs": 15000
+      },
+      "message": "System telemetry collected successfully."
+    },
+    "gpu": {
+      "requested": true,
+      "supported": false,
+      "statusCode": "unsupported",
+      "freshness": {
+        "status": "notApplicable",
+        "staleAfterMs": 15000
+      },
+      "message": "GPU telemetry is unsupported on this host."
+    }
+  },
   "system": {
     "hostname": "THINKPAD",
     "uptimeMs": 135119109,
@@ -117,6 +147,47 @@ Example:
   }
 }
 ```
+
+#### Collection metadata
+
+`collection` does not wrap the existing telemetry payload. It is additional metadata keyed by section name:
+
+- `collection.system`
+- `collection.cpu`
+- `collection.memory`
+- `collection.network`
+- `collection.disk`
+- `collection.gpu`
+- `collection.ollama`
+
+Each section status object contains:
+
+- `requested`: whether the section was requested for this snapshot
+- `supported`: whether the host supports collecting the section
+- `statusCode`: one of `ok`, `disabled`, `unsupported`, `unavailable`, `error`, or `stale`
+- `lastAttemptUtc`: time of the most recent collection attempt
+- `lastSuccessUtc`: time of the most recent successful collection attempt
+- `lastDurationMs`: duration in milliseconds of the most recent collection attempt
+- `freshness`: freshness evaluation for the most recent successful sample
+- `message`: human-readable explanation of the current section state
+- `lastError`: most recent collector error when one exists
+
+`freshness` contains:
+
+- `status`: one of `fresh`, `stale`, `unknown`, or `notApplicable`
+- `ageMs`: age in milliseconds of the last successful sample when one exists
+- `staleAfterMs`: the configured stale threshold
+
+Section-state matrix:
+
+| Situation | Data section | `statusCode` | `freshness.status` |
+|-----------|--------------|--------------|--------------------|
+| Section not requested | omitted | `disabled` | `notApplicable` |
+| Section unsupported on this host | omitted | `unsupported` | `notApplicable` |
+| Section supported but no current sample exists | omitted | `unavailable` | `unknown` or `fresh` |
+| Collector threw and no stale last success exists | omitted | `error` | `unknown` or `fresh` |
+| Latest success aged past `Telemetry.SectionStaleAfterMs` and a current request did not succeed | omitted | `stale` | `stale` |
+| Current request succeeded | present | `ok` | `fresh` |
 
 #### Selective telemetry query parameters
 
@@ -153,10 +224,95 @@ Behavior:
 - omits `disk`
 - omits `ollama`
 
+Even when a section is omitted by selector, its collection metadata remains present. Example:
+
+```json
+{
+  "collection": {
+    "gpu": {
+      "requested": false,
+      "supported": true,
+      "statusCode": "disabled",
+      "freshness": {
+        "status": "notApplicable",
+        "staleAfterMs": 15000
+      },
+      "message": "GPU telemetry was intentionally not requested."
+    }
+  }
+}
+```
+
 #### Optional sections
 
-- `gpu` is present only when NVIDIA telemetry is available and requested.
-- `ollama` is present only when Ollama is reachable and requested.
+- `gpu` is present only when NVIDIA telemetry is supported, requested, and a current sample succeeds.
+- `ollama` is present only when Ollama is supported, requested, and a current sample succeeds.
+
+Examples of omitted-vs-unhealthy states:
+
+Unsupported GPU section:
+
+```json
+{
+  "collection": {
+    "gpu": {
+      "requested": true,
+      "supported": false,
+      "statusCode": "unsupported",
+      "freshness": {
+        "status": "notApplicable",
+        "staleAfterMs": 15000
+      },
+      "message": "GPU telemetry is unsupported on this host."
+    }
+  }
+}
+```
+
+Temporarily unavailable GPU section:
+
+```json
+{
+  "collection": {
+    "gpu": {
+      "requested": true,
+      "supported": true,
+      "statusCode": "unavailable",
+      "lastAttemptUtc": "2026-05-18T14:16:03.1000000Z",
+      "lastDurationMs": 22.4,
+      "freshness": {
+        "status": "unknown",
+        "staleAfterMs": 15000
+      },
+      "message": "GPU telemetry is temporarily unavailable and no successful sample has been recorded yet."
+    }
+  }
+}
+```
+
+Stale Ollama section after a previous success:
+
+```json
+{
+  "collection": {
+    "ollama": {
+      "requested": true,
+      "supported": true,
+      "statusCode": "stale",
+      "lastAttemptUtc": "2026-05-18T14:18:03.1000000Z",
+      "lastSuccessUtc": "2026-05-18T14:17:40.0000000Z",
+      "lastDurationMs": 105.6,
+      "freshness": {
+        "status": "stale",
+        "ageMs": 23100,
+        "staleAfterMs": 15000
+      },
+      "message": "Ollama telemetry is stale because the most recent successful sample is older than the freshness window.",
+      "lastError": "Collection timed out before the section returned a sample."
+    }
+  }
+}
+```
 
 The `ollama` object contains:
 

@@ -49,7 +49,24 @@ namespace RigMonitor.Core.Settings
             }
         }
 
+        /// <summary>
+        /// Number of milliseconds after which a last successful section sample is considered stale.
+        /// Minimum 1000, maximum 3600000.
+        /// </summary>
+        public int SectionStaleAfterMs
+        {
+            get
+            {
+                return _SectionStaleAfterMs;
+            }
+            set
+            {
+                _SectionStaleAfterMs = Math.Clamp(value, 1000, 3600000);
+            }
+        }
+
         private int _RequestTimeoutMs = 5000;
         private int _WarmupDelayMs = 1000;
+        private int _SectionStaleAfterMs = 15000;
     }
 }

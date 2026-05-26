@@ -30,6 +30,65 @@
                 ]
               }
             }
+          ],
+          "response": [
+            {
+              "name": "Example - Unsupported GPU Section",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{telemetryPath}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"collectedUtc\": \"2026-05-26T18:30:00Z\",\n  \"hostPlatform\": \"linux\",\n  \"nvidiaAvailable\": false,\n  \"ollamaAvailable\": true,\n  \"collection\": {\n    \"collectedUtc\": \"2026-05-26T18:30:00Z\",\n    \"staleAfterMs\": 15000,\n    \"gpu\": {\n      \"requested\": true,\n      \"supported\": false,\n      \"statusCode\": \"unsupported\",\n      \"freshness\": {\n        \"status\": \"notApplicable\",\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"GPU telemetry is unsupported on this host.\"\n    },\n    \"ollama\": {\n      \"requested\": true,\n      \"supported\": true,\n      \"statusCode\": \"ok\",\n      \"lastAttemptUtc\": \"2026-05-26T18:30:00Z\",\n      \"lastSuccessUtc\": \"2026-05-26T18:30:00Z\",\n      \"lastDurationMs\": 84.2,\n      \"freshness\": {\n        \"status\": \"fresh\",\n        \"ageMs\": 0,\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"Ollama telemetry collected successfully.\"\n    }\n  },\n  \"ollama\": {\n    \"available\": true,\n    \"baseUrl\": \"http://localhost:11434\",\n    \"version\": \"0.9.0\",\n    \"collectedUtc\": \"2026-05-26T18:30:00Z\",\n    \"availableModelCount\": 3,\n    \"loadedModelCount\": 1,\n    \"availableModels\": [],\n    \"loadedModels\": []\n  }\n}"
+            },
+            {
+              "name": "Example - Temporarily Unavailable GPU Section",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{telemetryPath}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"collectedUtc\": \"2026-05-26T18:31:00Z\",\n  \"hostPlatform\": \"windows\",\n  \"nvidiaAvailable\": true,\n  \"ollamaAvailable\": true,\n  \"collection\": {\n    \"collectedUtc\": \"2026-05-26T18:31:00Z\",\n    \"staleAfterMs\": 15000,\n    \"gpu\": {\n      \"requested\": true,\n      \"supported\": true,\n      \"statusCode\": \"unavailable\",\n      \"lastAttemptUtc\": \"2026-05-26T18:31:00Z\",\n      \"lastDurationMs\": 22.4,\n      \"freshness\": {\n        \"status\": \"unknown\",\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"GPU telemetry is temporarily unavailable and no successful sample has been recorded yet.\"\n    }\n  },\n  \"system\": {\n    \"hostname\": \"RIG-02\",\n    \"uptimeMs\": 86400000,\n    \"osDescription\": \"Microsoft Windows 11\",\n    \"osArchitecture\": \"x64\",\n    \"processArchitecture\": \"x64\"\n  },\n  \"cpu\": {\n    \"logicalCoreCount\": 24,\n    \"utilizationPercent\": 12.6\n  }\n}"
+            },
+            {
+              "name": "Example - Stale Ollama Section",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{telemetryPath}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"collectedUtc\": \"2026-05-26T18:32:00Z\",\n  \"hostPlatform\": \"windows\",\n  \"nvidiaAvailable\": true,\n  \"ollamaAvailable\": true,\n  \"collection\": {\n    \"collectedUtc\": \"2026-05-26T18:32:00Z\",\n    \"staleAfterMs\": 15000,\n    \"ollama\": {\n      \"requested\": true,\n      \"supported\": true,\n      \"statusCode\": \"stale\",\n      \"lastAttemptUtc\": \"2026-05-26T18:32:00Z\",\n      \"lastSuccessUtc\": \"2026-05-26T18:31:35Z\",\n      \"lastDurationMs\": 105.6,\n      \"freshness\": {\n        \"status\": \"stale\",\n        \"ageMs\": 25000,\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"Ollama telemetry is stale because the most recent successful sample is older than the freshness window.\",\n      \"lastError\": \"Collection timed out before the section returned a sample.\"\n    }\n  },\n  \"system\": {\n    \"hostname\": \"RIG-02\",\n    \"uptimeMs\": 86450000,\n    \"osDescription\": \"Microsoft Windows 11\",\n    \"osArchitecture\": \"x64\",\n    \"processArchitecture\": \"x64\"\n  }\n}"
+            }
           ]
         },
         {
@@ -55,6 +114,27 @@
                   "});"
                 ]
               }
+            }
+          ],
+          "response": [
+            {
+              "name": "Example - Disabled GPU Section",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{telemetryPath}}{{telemetrySelectiveQuery}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"collectedUtc\": \"2026-05-26T18:33:00Z\",\n  \"hostPlatform\": \"windows\",\n  \"nvidiaAvailable\": true,\n  \"ollamaAvailable\": true,\n  \"collection\": {\n    \"collectedUtc\": \"2026-05-26T18:33:00Z\",\n    \"staleAfterMs\": 15000,\n    \"system\": {\n      \"requested\": false,\n      \"supported\": true,\n      \"statusCode\": \"disabled\",\n      \"freshness\": {\n        \"status\": \"notApplicable\",\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"System telemetry was intentionally not requested.\"\n    },\n    \"cpu\": {\n      \"requested\": true,\n      \"supported\": true,\n      \"statusCode\": \"ok\",\n      \"lastAttemptUtc\": \"2026-05-26T18:33:00Z\",\n      \"lastSuccessUtc\": \"2026-05-26T18:33:00Z\",\n      \"lastDurationMs\": 4.5,\n      \"freshness\": {\n        \"status\": \"fresh\",\n        \"ageMs\": 0,\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"CPU telemetry collected successfully.\"\n    },\n    \"memory\": {\n      \"requested\": true,\n      \"supported\": true,\n      \"statusCode\": \"ok\",\n      \"lastAttemptUtc\": \"2026-05-26T18:33:00Z\",\n      \"lastSuccessUtc\": \"2026-05-26T18:33:00Z\",\n      \"lastDurationMs\": 3.8,\n      \"freshness\": {\n        \"status\": \"fresh\",\n        \"ageMs\": 0,\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"Memory telemetry collected successfully.\"\n    },\n    \"network\": {\n      \"requested\": true,\n      \"supported\": true,\n      \"statusCode\": \"ok\",\n      \"lastAttemptUtc\": \"2026-05-26T18:33:00Z\",\n      \"lastSuccessUtc\": \"2026-05-26T18:33:00Z\",\n      \"lastDurationMs\": 6.1,\n      \"freshness\": {\n        \"status\": \"fresh\",\n        \"ageMs\": 0,\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"Network telemetry collected successfully.\"\n    },\n    \"disk\": {\n      \"requested\": false,\n      \"supported\": true,\n      \"statusCode\": \"disabled\",\n      \"freshness\": {\n        \"status\": \"notApplicable\",\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"Disk telemetry was intentionally not requested.\"\n    },\n    \"gpu\": {\n      \"requested\": false,\n      \"supported\": true,\n      \"statusCode\": \"disabled\",\n      \"freshness\": {\n        \"status\": \"notApplicable\",\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"GPU telemetry was intentionally not requested.\"\n    },\n    \"ollama\": {\n      \"requested\": false,\n      \"supported\": true,\n      \"statusCode\": \"disabled\",\n      \"freshness\": {\n        \"status\": \"notApplicable\",\n        \"staleAfterMs\": 15000\n      },\n      \"message\": \"Ollama telemetry was intentionally not requested.\"\n    }\n  },\n  \"cpu\": {\n    \"logicalCoreCount\": 24,\n    \"utilizationPercent\": 18.4\n  },\n  \"memory\": {\n    \"totalBytes\": 68719476736,\n    \"availableBytes\": 17179869184,\n    \"usedBytes\": 51539607552,\n    \"utilizationPercent\": 75\n  },\n  \"network\": {\n    \"totalReceiveBytesPerSecond\": 4096,\n    \"totalTransmitBytesPerSecond\": 2048,\n    \"activeInterfaceCount\": 2,\n    \"interfaces\": []\n  }\n}"
             }
           ]
         }

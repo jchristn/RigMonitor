@@ -23,6 +23,14 @@ function StateBox({ title, body, className = '' }) {
   )
 }
 
+function SectionPlaceholder({ message }) {
+  return (
+    <div className="section-placeholder">
+      <p>{message}</p>
+    </div>
+  )
+}
+
 export function HomeView() {
   const { t } = useTranslation()
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false)
@@ -54,6 +62,19 @@ export function HomeView() {
   function openJsonModal() {
     setJsonModalValue(JSON.stringify(data, null, 2))
     setIsJsonModalOpen(true)
+  }
+
+  const collection = data.collection || {}
+  const systemStatus = collection.system || null
+  const cpuStatus = collection.cpu || null
+  const memoryStatus = collection.memory || null
+  const diskStatus = collection.disk || null
+  const networkStatus = collection.network || null
+  const gpuStatus = collection.gpu || null
+  const ollamaStatus = collection.ollama || null
+
+  function placeholderMessage(status) {
+    return status?.message || t('states.sectionPayloadMissing')
   }
 
   return (
@@ -114,109 +135,134 @@ export function HomeView() {
         </div>
 
         <div className="overview-grid">
-          <SectionCard className="overview-half" title={t('sections.system')} description={t('descriptions.system')}>
-            <table className="metric-table">
-              <tbody>
-                <tr><th>{t('labels.hostname')}</th><td>{data.system?.hostname || '-'}</td></tr>
-                <tr><th>{t('labels.os')}</th><td>{data.system?.osDescription || '-'}</td></tr>
-                <tr><th>{t('labels.architecture')}</th><td>{data.system?.osArchitecture || '-'}</td></tr>
-                <tr><th>{t('labels.processArchitecture')}</th><td>{data.system?.processArchitecture || '-'}</td></tr>
-              </tbody>
-            </table>
+          <SectionCard className="overview-half" title={t('sections.system')} description={t('descriptions.system')} status={systemStatus}>
+            {data.system ? (
+              <table className="metric-table">
+                <tbody>
+                  <tr><th>{t('labels.hostname')}</th><td>{data.system.hostname || '-'}</td></tr>
+                  <tr><th>{t('labels.os')}</th><td>{data.system.osDescription || '-'}</td></tr>
+                  <tr><th>{t('labels.architecture')}</th><td>{data.system.osArchitecture || '-'}</td></tr>
+                  <tr><th>{t('labels.processArchitecture')}</th><td>{data.system.processArchitecture || '-'}</td></tr>
+                </tbody>
+              </table>
+            ) : (
+              <SectionPlaceholder message={placeholderMessage(systemStatus)} />
+            )}
           </SectionCard>
 
-          <SectionCard className="overview-half" title={t('sections.cpu')} description={t('descriptions.cpu')}>
-            <table className="metric-table">
-              <tbody>
-                <tr><th>{t('labels.logicalCores')}</th><td>{formatNumber(data.cpu?.logicalCoreCount)}</td></tr>
-                <tr><th>{t('labels.utilization')}</th><td>{formatPercent(data.cpu?.utilizationPercent)}</td></tr>
-              </tbody>
-            </table>
+          <SectionCard className="overview-half" title={t('sections.cpu')} description={t('descriptions.cpu')} status={cpuStatus}>
+            {data.cpu ? (
+              <table className="metric-table">
+                <tbody>
+                  <tr><th>{t('labels.logicalCores')}</th><td>{formatNumber(data.cpu.logicalCoreCount)}</td></tr>
+                  <tr><th>{t('labels.utilization')}</th><td>{formatPercent(data.cpu.utilizationPercent)}</td></tr>
+                </tbody>
+              </table>
+            ) : (
+              <SectionPlaceholder message={placeholderMessage(cpuStatus)} />
+            )}
           </SectionCard>
 
-          <SectionCard className="overview-half" title={t('sections.memory')} description={t('descriptions.memory')}>
-            <table className="metric-table">
-              <tbody>
-                <tr><th>{t('labels.total')}</th><td>{formatBytes(data.memory?.totalBytes)}</td></tr>
-                <tr><th>{t('labels.available')}</th><td>{formatBytes(data.memory?.availableBytes)}</td></tr>
-                <tr><th>{t('labels.used')}</th><td>{formatBytes(data.memory?.usedBytes)}</td></tr>
-                <tr><th>{t('labels.utilization')}</th><td>{formatPercent(data.memory?.utilizationPercent)}</td></tr>
-              </tbody>
-            </table>
+          <SectionCard className="overview-half" title={t('sections.memory')} description={t('descriptions.memory')} status={memoryStatus}>
+            {data.memory ? (
+              <table className="metric-table">
+                <tbody>
+                  <tr><th>{t('labels.total')}</th><td>{formatBytes(data.memory.totalBytes)}</td></tr>
+                  <tr><th>{t('labels.available')}</th><td>{formatBytes(data.memory.availableBytes)}</td></tr>
+                  <tr><th>{t('labels.used')}</th><td>{formatBytes(data.memory.usedBytes)}</td></tr>
+                  <tr><th>{t('labels.utilization')}</th><td>{formatPercent(data.memory.utilizationPercent)}</td></tr>
+                </tbody>
+              </table>
+            ) : (
+              <SectionPlaceholder message={placeholderMessage(memoryStatus)} />
+            )}
           </SectionCard>
 
-          <SectionCard className="overview-half" title={t('sections.disk')} description={t('descriptions.disk')}>
-            <div className="pill-row">
-              <span className="pill">{`${t('labels.reads')}: ${formatNumber(data.disk?.readOperationsPerSecond, { maximumFractionDigits: 2 })}`}</span>
-              <span className="pill">{`${t('labels.writes')}: ${formatNumber(data.disk?.writeOperationsPerSecond, { maximumFractionDigits: 2 })}`}</span>
-              <span className="pill">{`${t('labels.readQueue')}: ${formatNumber(data.disk?.readQueueDepth, { maximumFractionDigits: 2 })}`}</span>
-              <span className="pill">{`${t('labels.writeQueue')}: ${formatNumber(data.disk?.writeQueueDepth, { maximumFractionDigits: 2 })}`}</span>
-            </div>
-            <table className="metric-table">
-              <thead>
-                <tr>
-                  <th>{t('labels.volume')}</th>
-                  <th>{t('labels.mountPoint')}</th>
-                  <th>{t('labels.used')}</th>
-                  <th>{t('labels.total')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data.disk?.volumes || []).map((volume) => (
-                  <tr key={`${volume.name}-${volume.mountPoint}`}>
-                    <td>{volume.name}</td>
-                    <td>{volume.mountPoint}</td>
-                    <td>{`${formatBytes(volume.usedBytes)} (${formatPercent(volume.utilizationPercent)})`}</td>
-                    <td>{formatBytes(volume.totalBytes)}</td>
-                  </tr>
-                ))}
-                {(data.disk?.volumes || []).length === 0 ? (
-                  <tr>
-                    <td colSpan="4">{t('states.none')}</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+          <SectionCard className="overview-half" title={t('sections.disk')} description={t('descriptions.disk')} status={diskStatus}>
+            {data.disk ? (
+              <>
+                <div className="pill-row">
+                  <span className="pill">{`${t('labels.reads')}: ${formatNumber(data.disk.readOperationsPerSecond, { maximumFractionDigits: 2 })}`}</span>
+                  <span className="pill">{`${t('labels.writes')}: ${formatNumber(data.disk.writeOperationsPerSecond, { maximumFractionDigits: 2 })}`}</span>
+                  <span className="pill">{`${t('labels.readQueue')}: ${formatNumber(data.disk.readQueueDepth, { maximumFractionDigits: 2 })}`}</span>
+                  <span className="pill">{`${t('labels.writeQueue')}: ${formatNumber(data.disk.writeQueueDepth, { maximumFractionDigits: 2 })}`}</span>
+                </div>
+                <table className="metric-table">
+                  <thead>
+                    <tr>
+                      <th>{t('labels.volume')}</th>
+                      <th>{t('labels.mountPoint')}</th>
+                      <th>{t('labels.used')}</th>
+                      <th>{t('labels.total')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data.disk.volumes || []).map((volume) => (
+                      <tr key={`${volume.name}-${volume.mountPoint}`}>
+                        <td>{volume.name}</td>
+                        <td>{volume.mountPoint}</td>
+                        <td>{`${formatBytes(volume.usedBytes)} (${formatPercent(volume.utilizationPercent)})`}</td>
+                        <td>{formatBytes(volume.totalBytes)}</td>
+                      </tr>
+                    ))}
+                    {(data.disk.volumes || []).length === 0 ? (
+                      <tr>
+                        <td colSpan="4">{t('states.none')}</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </>
+            ) : (
+              <SectionPlaceholder message={placeholderMessage(diskStatus)} />
+            )}
           </SectionCard>
 
           <SectionCard
             className="overview-span-2"
             title={t('sections.network')}
             description={t('descriptions.network')}
-            extra={<span className="pill">{`${t('labels.activeInterfaces')}: ${formatNumber(data.network?.activeInterfaceCount)}`}</span>}
+            extra={data.network ? <span className="pill">{`${t('labels.activeInterfaces')}: ${formatNumber(data.network.activeInterfaceCount)}`}</span> : null}
+            status={networkStatus}
           >
-            <table className="metric-table">
-              <thead>
-                <tr>
-                  <th>{t('labels.name')}</th>
-                  <th>{t('labels.rx')}</th>
-                  <th>{t('labels.tx')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data.network?.interfaces || []).map((item) => (
-                  <tr key={item.name}>
-                    <td>{item.name}</td>
-                    <td>{`${formatBytes(item.receiveBytesPerSecond)}/s`}</td>
-                    <td>{`${formatBytes(item.transmitBytesPerSecond)}/s`}</td>
-                  </tr>
-                ))}
-                {(data.network?.interfaces || []).length === 0 ? (
+            {data.network ? (
+              <table className="metric-table">
+                <thead>
                   <tr>
-                    <td colSpan="3">{t('states.none')}</td>
+                    <th>{t('labels.name')}</th>
+                    <th>{t('labels.rx')}</th>
+                    <th>{t('labels.tx')}</th>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(data.network.interfaces || []).map((item) => (
+                    <tr key={item.name}>
+                      <td>{item.name}</td>
+                      <td>{`${formatBytes(item.receiveBytesPerSecond)}/s`}</td>
+                      <td>{`${formatBytes(item.transmitBytesPerSecond)}/s`}</td>
+                    </tr>
+                  ))}
+                  {(data.network.interfaces || []).length === 0 ? (
+                    <tr>
+                      <td colSpan="3">{t('states.none')}</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            ) : (
+              <SectionPlaceholder message={placeholderMessage(networkStatus)} />
+            )}
           </SectionCard>
 
-          {data.gpu ? (
-            <SectionCard
-              className="overview-half"
-              title={t('sections.gpu')}
-              description={t('descriptions.gpu')}
-              extra={<span className="pill success">{`${t('labels.vendor')}: ${data.gpu.vendor}`}</span>}
-            >
+          <SectionCard
+            className="overview-half"
+            title={t('sections.gpu')}
+            description={t('descriptions.gpu')}
+            extra={data.gpu ? <span className="pill success">{`${t('labels.vendor')}: ${data.gpu.vendor}`}</span> : null}
+            status={gpuStatus}
+          >
+            {data.gpu ? (
+              <>
               <div className="pill-row">
                 <span className="pill">{`${t('labels.endpoint')}: ${data.gpu.exporterEndpoint}`}</span>
               </div>
@@ -240,18 +286,21 @@ export function HomeView() {
                   ))}
                 </tbody>
               </table>
-            </SectionCard>
-          ) : (
-            <StateBox className="overview-half" title={t('sections.gpu')} body={t('states.gpuMissing')} />
-          )}
+              </>
+            ) : (
+              <SectionPlaceholder message={placeholderMessage(gpuStatus)} />
+            )}
+          </SectionCard>
 
-          {data.ollama ? (
-            <SectionCard
-              className="overview-span-2"
-              title={t('sections.ollama')}
-              description={t('descriptions.ollama')}
-              extra={<span className="pill success">{`${t('labels.version')}: ${data.ollama.version || '-'}`}</span>}
-            >
+          <SectionCard
+            className="overview-span-2"
+            title={t('sections.ollama')}
+            description={t('descriptions.ollama')}
+            extra={data.ollama ? <span className="pill success">{`${t('labels.version')}: ${data.ollama.version || '-'}`}</span> : null}
+            status={ollamaStatus}
+          >
+            {data.ollama ? (
+              <>
               <div className="stats-grid">
                 <StatCard label={t('labels.availableModels')} value={formatNumber(data.ollama.availableModelCount)} />
                 <StatCard label={t('labels.loadedModels')} value={formatNumber(data.ollama.loadedModelCount)} />
@@ -328,10 +377,11 @@ export function HomeView() {
                   </tbody>
                 </table>
               </div>
-            </SectionCard>
-          ) : (
-            <StateBox className="overview-span-2" title={t('sections.ollama')} body={t('states.ollamaMissing')} />
-          )}
+              </>
+            ) : (
+              <SectionPlaceholder message={placeholderMessage(ollamaStatus)} />
+            )}
+          </SectionCard>
         </div>
       </div>
 

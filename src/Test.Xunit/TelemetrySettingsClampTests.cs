@@ -16,11 +16,13 @@ namespace Test.Xunit
             TelemetrySettings settings = new TelemetrySettings
             {
                 RequestTimeoutMs = 10,
-                WarmupDelayMs = 1000000
+                WarmupDelayMs = 1000000,
+                SectionStaleAfterMs = 10
             };
 
             Assert.Equal(500, settings.RequestTimeoutMs);
             Assert.Equal(60000, settings.WarmupDelayMs);
+            Assert.Equal(1000, settings.SectionStaleAfterMs);
         }
     }
 }

@@ -242,6 +242,14 @@ a {
   margin-bottom: 0.75rem;
 }
 
+.section-header-aside,
+.section-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
 .section-header h2 {
   margin: 0;
   font-family: var(--font-heading);
@@ -253,6 +261,39 @@ a {
   margin: 0.18rem 0 0;
   color: var(--text-secondary);
   font-size: 0.95rem;
+}
+
+.section-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 0.95rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--bg-color) 0%, var(--card-bg) 100%);
+}
+
+.section-status-item {
+  min-width: 0;
+}
+
+.section-status-item dt {
+  margin: 0 0 0.18rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.section-status-item dd {
+  margin: 0;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.section-status-item-wide {
+  grid-column: 1 / -1;
 }
 
 .subsection-block {
@@ -349,6 +390,15 @@ a {
 }
 
 .state-box p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.section-placeholder {
+  padding: 0.15rem 0 0.05rem;
+}
+
+.section-placeholder p {
   margin: 0;
   color: var(--text-secondary);
 }
@@ -516,6 +566,15 @@ a {
 
   .modal-header {
     align-items: flex-start;
+  }
+
+  .section-header {
+    flex-direction: column;
+  }
+
+  .section-header-aside,
+  .section-badges {
+    justify-content: flex-start;
   }
 
   .metric-table,

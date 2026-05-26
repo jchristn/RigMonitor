@@ -52,6 +52,21 @@ namespace Test.Xunit
                             DriveType = DriveType.Fixed
                         }
                     }
+                },
+                Collection = new TelemetryCollectionMetadata
+                {
+                    System = new TelemetrySectionCollectionStatus
+                    {
+                        Requested = true,
+                        Supported = true,
+                        StatusCode = TelemetryCollectionStatusCodeEnum.Stale,
+                        Freshness = new TelemetrySectionFreshness
+                        {
+                            Status = TelemetryFreshnessStatusEnum.Stale,
+                            AgeMs = 30000D,
+                            StaleAfterMs = 15000
+                        }
+                    }
                 }
             };
 
@@ -63,6 +78,9 @@ namespace Test.Xunit
             Assert.Contains("\"type\":\"wireless80211\"", json);
             Assert.Contains("\"operationalStatus\":\"up\"", json);
             Assert.Contains("\"driveType\":\"fixed\"", json);
+            Assert.Contains("\"collection\":", json);
+            Assert.Contains("\"statusCode\":\"stale\"", json);
+            Assert.Contains("\"freshness\":{\"status\":\"stale\"", json);
         }
     }
 }
