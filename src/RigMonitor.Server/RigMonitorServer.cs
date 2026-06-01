@@ -73,12 +73,14 @@ namespace RigMonitor.Server
 
             IDcgmExporterClient dcgmClient = new DcgmExporterClient(settings.Telemetry);
             IOllamaClient ollamaClient = new OllamaClient(settings.Telemetry);
+            IVllmTelemetryProvider vllmTelemetryProvider = new VllmTelemetryProvider(settings.Telemetry);
             IUtilyzeTelemetryProvider utilyzeTelemetryProvider = new UtilyzeTelemetryProvider(settings.Telemetry);
             IRuntimeCapabilitiesService runtimeCapabilitiesService = new RuntimeCapabilitiesService(
                 settings.Telemetry,
                 settings.Dashboard.Enabled,
                 dcgmClient,
                 ollamaClient,
+                vllmTelemetryProvider,
                 utilyzeTelemetryProvider);
 
             await runtimeCapabilitiesService.InitializeAsync(cancellationToken).ConfigureAwait(false);
@@ -95,6 +97,7 @@ namespace RigMonitor.Server
                 runtimeCapabilitiesService,
                 gpuTelemetryProvider,
                 ollamaClient,
+                vllmTelemetryProvider,
                 utilyzeTelemetryProvider);
 
             await telemetryService.WarmupAsync(cancellationToken).ConfigureAwait(false);
@@ -107,6 +110,7 @@ namespace RigMonitor.Server
             logger.Info("Runtime platform: " + runtimeCapabilitiesService.Current.HostPlatform);
             logger.Info("DCGM available: " + runtimeCapabilitiesService.Current.NvidiaAvailable);
             logger.Info("Ollama available: " + runtimeCapabilitiesService.Current.OllamaAvailable);
+            logger.Info("vLLM available: " + runtimeCapabilitiesService.Current.VllmAvailable);
             logger.Info("Utilyze available: " + runtimeCapabilitiesService.Current.UtilyzeAvailable);
             return host;
         }

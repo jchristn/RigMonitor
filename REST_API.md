@@ -68,9 +68,13 @@ Example:
   "telemetryWarm": true,
   "nvidiaAvailable": false,
   "ollamaAvailable": true,
+  "vllmEnabled": false,
+  "vllmAvailable": false,
+  "utilyzeEnabled": false,
   "utilyzeAvailable": false,
   "dcgmExporterUrl": "http://localhost:9400/metrics",
   "ollamaBaseUrl": "http://localhost:11434",
+  "vllmMetricsUrl": "http://localhost:8000/metrics",
   "utilyzeLiveUrl": "ws://127.0.0.1:8079/live"
 }
 ```
@@ -85,6 +89,7 @@ Top-level fields:
 - `hostPlatform`
 - `nvidiaAvailable`
 - `ollamaAvailable`
+- `vllmAvailable`
 - `utilyzeAvailable`
 - `collection`
 - `system`
@@ -94,6 +99,7 @@ Top-level fields:
 - `disk`
 - `gpu`
 - `ollama`
+- `vllm`
 - `utilyze`
 
 Example:
@@ -130,6 +136,16 @@ Example:
         "staleAfterMs": 15000
       },
       "message": "GPU telemetry is unsupported on this host."
+    },
+    "vllm": {
+      "requested": true,
+      "supported": false,
+      "statusCode": "unsupported",
+      "freshness": {
+        "status": "notApplicable",
+        "staleAfterMs": 15000
+      },
+      "message": "vLLM telemetry is unsupported on this host."
     },
     "utilyze": {
       "requested": true,
@@ -173,6 +189,7 @@ Example:
 - `collection.disk`
 - `collection.gpu`
 - `collection.ollama`
+- `collection.vllm`
 - `collection.utilyze`
 
 Each section status object contains:
@@ -215,6 +232,7 @@ Recognized selector keys:
 - `disk`
 - `gpu`
 - `ollama`
+- `vllm`
 - `utilyze`
 
 Rules:
@@ -239,6 +257,7 @@ Behavior:
 - omits `system`
 - omits `disk`
 - omits `ollama`
+- omits `vllm`
 - omits `utilyze`
 
 Even when a section is omitted by selector, its collection metadata remains present. Example:
@@ -264,6 +283,7 @@ Even when a section is omitted by selector, its collection metadata remains pres
 
 - `gpu` is present only when NVIDIA telemetry is supported, requested, and a current sample succeeds.
 - `ollama` is present only when Ollama is supported, requested, and a current sample succeeds.
+- `vllm` is present only when vLLM telemetry is enabled, reachable, requested, and a current metrics scrape succeeds.
 - `utilyze` is present only when Utilyze is enabled, reachable, requested, and has a fresh live sample.
 
 Examples of omitted-vs-unhealthy states:
@@ -342,6 +362,81 @@ The `ollama` object contains:
 - `loadedModelCount`
 - `availableModels`
 - `loadedModels`
+
+The `vllm` object contains:
+
+- `available`
+- `metricsEndpoint`
+- `collectedUtc`
+- `modelNames`
+- `summary`
+- `metrics`
+
+The `vllm.summary` object contains normalized values when the corresponding Prometheus samples are present:
+
+- `runningRequests`
+- `waitingRequests`
+- `swappedRequests`
+- `gpuCacheUsagePercent`
+- `cpuCacheUsagePercent`
+- `promptTokensTotal`
+- `generationTokensTotal`
+- `successfulRequestsTotal`
+
+Each `vllm.metrics[]` object contains:
+
+- `name`
+- `labels`
+- `value`
+
+Example vLLM section:
+
+```json
+{
+  "vllmAvailable": true,
+  "collection": {
+    "vllm": {
+      "requested": true,
+      "supported": true,
+      "statusCode": "ok",
+      "lastAttemptUtc": "2026-06-01T20:20:30.122Z",
+      "lastSuccessUtc": "2026-06-01T20:20:30.122Z",
+      "lastDurationMs": 12.3,
+      "freshness": {
+        "status": "fresh",
+        "ageMs": 0,
+        "staleAfterMs": 15000
+      },
+      "message": "vLLM telemetry collected successfully."
+    }
+  },
+  "vllm": {
+    "available": true,
+    "metricsEndpoint": "http://localhost:8000/metrics",
+    "collectedUtc": "2026-06-01T20:20:30.122Z",
+    "modelNames": [
+      "meta-llama/Llama-3.1-70B-Instruct"
+    ],
+    "summary": {
+      "runningRequests": 2,
+      "waitingRequests": 1,
+      "gpuCacheUsagePercent": 63.5,
+      "promptTokensTotal": 123456,
+      "generationTokensTotal": 789012,
+      "successfulRequestsTotal": 345
+    },
+    "metrics": [
+      {
+        "name": "vllm:num_requests_running",
+        "labels": {
+          "model_name": "meta-llama/Llama-3.1-70B-Instruct"
+        },
+        "value": 2
+      }
+    ]
+  }
+}
+```
 
 The `utilyze` object contains:
 

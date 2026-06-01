@@ -46,7 +46,7 @@ namespace RigMonitor.Server.Routes
                 HttpMethod.GET,
                 "/v1/capabilities",
                 CapabilitiesRouteAsync,
-                openApiMetadata: OpenApiRouteMetadata.Create("Capabilities", "Telemetry").WithDescription("Runtime capabilities including DCGM, Ollama, and Utilyze availability."));
+                openApiMetadata: OpenApiRouteMetadata.Create("Capabilities", "Telemetry").WithDescription("Runtime capabilities including DCGM, Ollama, vLLM, and Utilyze availability."));
         }
 
         private Task ReadyzRouteAsync(HttpContextBase context)

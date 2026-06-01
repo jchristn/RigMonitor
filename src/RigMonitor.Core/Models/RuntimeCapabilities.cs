@@ -39,6 +39,21 @@ namespace RigMonitor.Core.Models
         public bool OllamaAvailable { get; set; } = false;
 
         /// <summary>
+        /// Whether vLLM telemetry collection is enabled in configuration.
+        /// </summary>
+        public bool VllmEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Whether vLLM is reachable.
+        /// </summary>
+        public bool VllmAvailable { get; set; } = false;
+
+        /// <summary>
+        /// Whether Utilyze telemetry collection is enabled in configuration.
+        /// </summary>
+        public bool UtilyzeEnabled { get; set; } = false;
+
+        /// <summary>
         /// Whether Utilyze is reachable.
         /// </summary>
         public bool UtilyzeAvailable { get; set; } = false;
@@ -52,6 +67,11 @@ namespace RigMonitor.Core.Models
         /// Configured Ollama base URL.
         /// </summary>
         public string OllamaBaseUrl { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Configured vLLM metrics endpoint.
+        /// </summary>
+        public string VllmMetricsUrl { get; set; } = String.Empty;
 
         /// <summary>
         /// Configured Utilyze live endpoint.

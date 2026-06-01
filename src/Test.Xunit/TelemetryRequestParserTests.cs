@@ -31,6 +31,7 @@ namespace Test.Xunit
             Assert.True(options.IncludeDisk);
             Assert.True(options.IncludeGpu);
             Assert.True(options.IncludeOllama);
+            Assert.True(options.IncludeVllm);
             Assert.True(options.IncludeUtilyze);
         }
 
@@ -49,6 +50,7 @@ namespace Test.Xunit
             Assert.False(options.IncludeDisk);
             Assert.False(options.IncludeGpu);
             Assert.False(options.IncludeOllama);
+            Assert.False(options.IncludeVllm);
             Assert.False(options.IncludeUtilyze);
         }
 
@@ -67,7 +69,27 @@ namespace Test.Xunit
             Assert.False(options.IncludeDisk);
             Assert.False(options.IncludeGpu);
             Assert.False(options.IncludeOllama);
+            Assert.False(options.IncludeVllm);
             Assert.True(options.IncludeUtilyze);
+        }
+
+        /// <summary>
+        /// Verify vLLM can be selected independently.
+        /// </summary>
+        [Fact]
+        public void ShouldParseVllmTelemetryQuery()
+        {
+            TelemetryRequestOptions options = TelemetryRequestParser.Parse("/v1/telemetry?vllm");
+
+            Assert.False(options.IncludeSystem);
+            Assert.False(options.IncludeCpu);
+            Assert.False(options.IncludeMemory);
+            Assert.False(options.IncludeNetwork);
+            Assert.False(options.IncludeDisk);
+            Assert.False(options.IncludeGpu);
+            Assert.False(options.IncludeOllama);
+            Assert.True(options.IncludeVllm);
+            Assert.False(options.IncludeUtilyze);
         }
 
         /// <summary>

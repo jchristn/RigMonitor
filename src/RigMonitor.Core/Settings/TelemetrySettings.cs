@@ -18,6 +18,16 @@ namespace RigMonitor.Core.Settings
         public string OllamaBaseUrl { get; set; } = Constants.DefaultOllamaBaseUrl;
 
         /// <summary>
+        /// Whether vLLM telemetry collection is enabled.
+        /// </summary>
+        public bool VllmEnabled { get; set; } = false;
+
+        /// <summary>
+        /// vLLM Prometheus metrics URL.
+        /// </summary>
+        public string VllmMetricsUrl { get; set; } = Constants.DefaultVllmMetricsUrl;
+
+        /// <summary>
         /// Whether Utilyze telemetry collection is enabled.
         /// </summary>
         public bool UtilyzeEnabled { get; set; } = false;

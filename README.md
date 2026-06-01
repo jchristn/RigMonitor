@@ -28,9 +28,10 @@ Detailed endpoint and payload documentation lives in [REST_API.md](./REST_API.md
 - CPU, memory, network, and disk telemetry
 - Optional NVIDIA GPU telemetry through DCGM exporter
 - Optional Ollama telemetry with available models and loaded models
+- Optional vLLM telemetry through its Prometheus metrics endpoint
 - Optional Utilyze telemetry through a sidecar WebSocket service for GPU SOL, bandwidth, and attainable ceiling metrics
 - Structured per-section collection metadata with request state, support state, freshness, last success, and stable status codes
-- Same-port dashboard with manual refresh, auto-refresh, and i18n
+- Same-port dashboard with manual refresh, auto-refresh, i18n, and vLLM/Utilyze status/telemetry cards
 - OpenAPI document at `/openapi.json` and Swagger UI at `/openapi`
 
 ## Endpoints
@@ -54,6 +55,7 @@ Detailed endpoint and payload documentation lives in [REST_API.md](./REST_API.md
 - `disk`
 - `gpu`
 - `ollama`
+- `vllm`
 - `utilyze`
 
 Rules:
@@ -71,7 +73,7 @@ http://127.0.0.1:9990/v1/telemetry?cpu&memory&network&gpu=false
 
 All API response property names are camelCase. RigMonitor-owned classification values are also emitted as camelCase strings, for example `windows`, `x64`, `wireless80211`, `up`, and `fixed`. Upstream opaque strings such as Ollama quantization labels are passed through as provided.
 
-Every `/v1/telemetry` response now also includes a top-level `collection` object. It does not wrap or rename the existing `system`, `cpu`, `memory`, `network`, `disk`, `gpu`, or `ollama` payload sections. Instead, it explains why a section is present, omitted, unsupported, temporarily unavailable, errored, or stale.
+Every `/v1/telemetry` response now also includes a top-level `collection` object. It does not wrap or rename the existing `system`, `cpu`, `memory`, `network`, `disk`, `gpu`, `ollama`, `vllm`, or `utilyze` payload sections. Instead, it explains why a section is present, omitted, unsupported, temporarily unavailable, errored, or stale.
 
 ## Section States
 
@@ -129,6 +131,8 @@ Relevant telemetry settings:
 
 - `Telemetry.DcgmExporterUrl`
 - `Telemetry.OllamaBaseUrl`
+- `Telemetry.VllmEnabled`
+- `Telemetry.VllmMetricsUrl`
 - `Telemetry.UtilyzeEnabled`
 - `Telemetry.UtilyzeLiveUrl`
 - `Telemetry.UtilyzeClientId`
@@ -154,10 +158,11 @@ docker compose up --build
 
 This persists settings and logs under `docker/data/`.
 
-## GPU And Ollama Notes
+## GPU, Ollama, vLLM, And Utilyze Notes
 
 - NVIDIA telemetry is available only when the configured DCGM exporter is reachable at startup.
 - Ollama telemetry is available only when the configured Ollama API is reachable at startup.
+- vLLM telemetry is available only when `Telemetry.VllmEnabled` is `true` and the configured Prometheus metrics endpoint is reachable at startup.
 - Utilyze telemetry is available only when `Telemetry.UtilyzeEnabled` is `true` and a Utilyze sidecar is reachable at `Telemetry.UtilyzeLiveUrl` during startup. RigMonitor consumes Utilyze over its live WebSocket API and does not launch or supervise `utlz`.
 - Utilyze collection requires NVIDIA profiling permissions on the collecting Linux host. Configure the Utilyze process separately, including `UTLZ_DISABLE_METRICS=1` if you do not want Utilyze to send aggregate roofline data to Systalyze.
-- The dashboard keeps GPU and Ollama cards visible and uses `collection` metadata to explain disabled, unsupported, unavailable, error, and stale states.
+- The dashboard keeps optional telemetry cards visible and uses `collection` metadata to explain disabled, unsupported, unavailable, error, and stale states.

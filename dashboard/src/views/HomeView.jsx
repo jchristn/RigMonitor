@@ -72,9 +72,56 @@ export function HomeView() {
   const networkStatus = collection.network || null
   const gpuStatus = collection.gpu || null
   const ollamaStatus = collection.ollama || null
+  const vllmStatus = collection.vllm || null
+  const utilyzeStatus = collection.utilyze || null
 
   function placeholderMessage(status) {
     return status?.message || t('states.sectionPayloadMissing')
+  }
+
+  function labelsText(labels) {
+    const entries = Object.entries(labels || {})
+    if (entries.length < 1) {
+      return '-'
+    }
+
+    return entries.map(([key, value]) => `${key}=${value}`).join(', ')
+  }
+
+  function vllmCapabilityLabel() {
+    if (!capabilities?.vllmEnabled) {
+      return t('overview.capabilities.vllmDisabled')
+    }
+
+    return capabilities?.vllmAvailable
+      ? t('overview.capabilities.vllmOnline')
+      : t('overview.capabilities.vllmOffline')
+  }
+
+  function vllmCapabilityTone() {
+    if (!capabilities?.vllmEnabled) {
+      return 'warning'
+    }
+
+    return capabilities?.vllmAvailable ? 'success' : 'warning'
+  }
+
+  function utilyzeCapabilityLabel() {
+    if (!capabilities?.utilyzeEnabled) {
+      return t('overview.capabilities.utilyzeDisabled')
+    }
+
+    return capabilities?.utilyzeAvailable
+      ? t('overview.capabilities.utilyzeOnline')
+      : t('overview.capabilities.utilyzeOffline')
+  }
+
+  function utilyzeCapabilityTone() {
+    if (!capabilities?.utilyzeEnabled) {
+      return 'warning'
+    }
+
+    return capabilities?.utilyzeAvailable ? 'success' : 'warning'
   }
 
   return (
@@ -124,6 +171,12 @@ export function HomeView() {
           </span>
           <span className={`pill ${capabilities?.ollamaAvailable ? 'success' : 'warning'}`}>
             {capabilities?.ollamaAvailable ? t('overview.capabilities.ollamaOn') : t('overview.capabilities.ollamaOff')}
+          </span>
+          <span className={`pill ${vllmCapabilityTone()}`}>
+            {vllmCapabilityLabel()}
+          </span>
+          <span className={`pill ${utilyzeCapabilityTone()}`}>
+            {utilyzeCapabilityLabel()}
           </span>
         </div>
 
@@ -220,6 +273,82 @@ export function HomeView() {
 
           <SectionCard
             className="overview-span-2"
+            title={t('sections.vllm')}
+            description={t('descriptions.vllm')}
+            extra={data.vllm ? <span className="pill success">{`${t('labels.endpoint')}: ${data.vllm.metricsEndpoint || '-'}`}</span> : null}
+            status={vllmStatus}
+          >
+            {data.vllm ? (
+              <>
+              <div className="stats-grid">
+                <StatCard label={t('labels.runningRequests')} value={formatNumber(data.vllm.summary?.runningRequests)} />
+                <StatCard label={t('labels.waitingRequests')} value={formatNumber(data.vllm.summary?.waitingRequests)} />
+                <StatCard label={t('labels.gpuCache')} value={formatPercent(data.vllm.summary?.gpuCacheUsagePercent)} />
+                <StatCard label={t('labels.models')} value={formatNumber((data.vllm.modelNames || []).length)} />
+                <StatCard label={t('labels.promptTokens')} value={formatNumber(data.vllm.summary?.promptTokensTotal)} />
+                <StatCard label={t('labels.generationTokens')} value={formatNumber(data.vllm.summary?.generationTokensTotal)} />
+                <StatCard label={t('labels.successfulRequests')} value={formatNumber(data.vllm.summary?.successfulRequestsTotal)} />
+                <StatCard label={t('labels.metrics')} value={formatNumber((data.vllm.metrics || []).length)} />
+              </div>
+
+              <div className="subsection-block">
+                <div className="subsection-header">
+                  <div>
+                    <h3>{t('labels.models')}</h3>
+                    <p>{t('descriptions.vllmModels')}</p>
+                  </div>
+                  <span className="pill">{formatNumber((data.vllm.modelNames || []).length)}</span>
+                </div>
+                <div className="pill-row">
+                  {(data.vllm.modelNames || []).map((model) => (
+                    <span className="pill" key={model}>{model}</span>
+                  ))}
+                  {(data.vllm.modelNames || []).length === 0 ? (
+                    <span className="pill">{t('states.none')}</span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="subsection-block">
+                <div className="subsection-header">
+                  <div>
+                    <h3>{t('labels.metrics')}</h3>
+                    <p>{t('descriptions.vllmMetrics')}</p>
+                  </div>
+                  <span className="pill">{formatNumber((data.vllm.metrics || []).length)}</span>
+                </div>
+                <table className="metric-table">
+                  <thead>
+                    <tr>
+                      <th>{t('labels.name')}</th>
+                      <th>{t('labels.value')}</th>
+                      <th>{t('labels.labels')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data.vllm.metrics || []).slice(0, 50).map((metric, index) => (
+                      <tr key={`${metric.name}-${index}`}>
+                        <td>{metric.name}</td>
+                        <td>{formatNumber(metric.value, { maximumFractionDigits: 4 })}</td>
+                        <td>{labelsText(metric.labels)}</td>
+                      </tr>
+                    ))}
+                    {(data.vllm.metrics || []).length === 0 ? (
+                      <tr>
+                        <td colSpan="3">{t('states.none')}</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+              </>
+            ) : (
+              <SectionPlaceholder message={placeholderMessage(vllmStatus)} />
+            )}
+          </SectionCard>
+
+          <SectionCard
+            className="overview-span-2"
             title={t('sections.network')}
             description={t('descriptions.network')}
             extra={data.network ? <span className="pill">{`${t('labels.activeInterfaces')}: ${formatNumber(data.network.activeInterfaceCount)}`}</span> : null}
@@ -289,6 +418,62 @@ export function HomeView() {
               </>
             ) : (
               <SectionPlaceholder message={placeholderMessage(gpuStatus)} />
+            )}
+          </SectionCard>
+
+          <SectionCard
+            className="overview-span-2"
+            title={t('sections.utilyze')}
+            description={t('descriptions.utilyze')}
+            extra={data.utilyze ? <span className="pill success">{`${t('labels.endpoint')}: ${data.utilyze.endpoint || '-'}`}</span> : null}
+            status={utilyzeStatus}
+          >
+            {data.utilyze ? (
+              <>
+              <div className="stats-grid">
+                <StatCard label={t('labels.devices')} value={formatNumber((data.utilyze.deviceIds || []).length)} />
+                <StatCard label={t('labels.endpoint')} value={data.utilyze.endpoint || '-'} />
+                <StatCard label={t('labels.collected')} value={formatDateTime(data.utilyze.collectedUtc)} />
+                <StatCard label={t('labels.status')} value={data.utilyze.available ? t('states.online') : t('states.offline')} />
+              </div>
+              <table className="metric-table">
+                <thead>
+                  <tr>
+                    <th>{t('labels.device')}</th>
+                    <th>{t('labels.computeSol')}</th>
+                    <th>{t('labels.memorySol')}</th>
+                    <th>{t('labels.smActive')}</th>
+                    <th>{t('labels.nvmlUtilization')}</th>
+                    <th>{t('labels.pcie')}</th>
+                    <th>{t('labels.nvlink')}</th>
+                    <th>{t('labels.model')}</th>
+                    <th>{t('labels.computeCeiling')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data.utilyze.devices || []).map((device) => (
+                    <tr key={device.deviceIndex}>
+                      <td>{`${t('labels.gpu')} ${formatNumber(device.deviceIndex)}`}</td>
+                      <td>{formatPercent(device.computeSolPercent)}</td>
+                      <td>{formatPercent(device.memorySolPercent)}</td>
+                      <td>{formatPercent(device.smActivePercent)}</td>
+                      <td>{formatPercent(device.nvmlUtilizationPercent)}</td>
+                      <td>{`${formatBytes(device.pcieReceiveBytesPerSecond)}/s ${t('labels.rx')} / ${formatBytes(device.pcieTransmitBytesPerSecond)}/s ${t('labels.tx')}`}</td>
+                      <td>{`${formatBytes(device.nvlinkReceiveBytesPerSecond)}/s ${t('labels.rx')} / ${formatBytes(device.nvlinkTransmitBytesPerSecond)}/s ${t('labels.tx')}`}</td>
+                      <td>{device.modelName || '-'}</td>
+                      <td>{formatPercent(device.computeSolCeilingPercent)}</td>
+                    </tr>
+                  ))}
+                  {(data.utilyze.devices || []).length === 0 ? (
+                    <tr>
+                      <td colSpan="9">{t('states.none')}</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+              </>
+            ) : (
+              <SectionPlaceholder message={placeholderMessage(utilyzeStatus)} />
             )}
           </SectionCard>
 

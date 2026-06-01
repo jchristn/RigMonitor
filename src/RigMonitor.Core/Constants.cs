@@ -31,6 +31,11 @@ namespace RigMonitor.Core
         public const string DefaultOllamaBaseUrl = "http://localhost:11434";
 
         /// <summary>
+        /// Default vLLM Prometheus metrics endpoint.
+        /// </summary>
+        public const string DefaultVllmMetricsUrl = "http://localhost:8000/metrics";
+
+        /// <summary>
         /// Default Utilyze live telemetry endpoint.
         /// </summary>
         public const string DefaultUtilyzeLiveUrl = "ws://127.0.0.1:8079/live";

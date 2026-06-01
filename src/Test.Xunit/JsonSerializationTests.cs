@@ -53,6 +53,31 @@ namespace Test.Xunit
                         }
                     }
                 },
+                VllmAvailable = true,
+                Vllm = new VllmTelemetry
+                {
+                    Available = true,
+                    MetricsEndpoint = "http://localhost:8000/metrics",
+                    ModelNames = { "example-vllm-model" },
+                    Summary = new VllmSummaryTelemetry
+                    {
+                        RunningRequests = 2D,
+                        WaitingRequests = 1D,
+                        GpuCacheUsagePercent = 63.5D
+                    },
+                    Metrics =
+                    {
+                        new VllmMetricTelemetry
+                        {
+                            Name = "vllm:num_requests_running",
+                            Value = 2D,
+                            Labels =
+                            {
+                                { "model_name", "example-vllm-model" }
+                            }
+                        }
+                    }
+                },
                 UtilyzeAvailable = true,
                 Utilyze = new UtilyzeTelemetry
                 {
@@ -96,6 +121,9 @@ namespace Test.Xunit
             Assert.Contains("\"type\":\"wireless80211\"", json);
             Assert.Contains("\"operationalStatus\":\"up\"", json);
             Assert.Contains("\"driveType\":\"fixed\"", json);
+            Assert.Contains("\"vllmAvailable\":true", json);
+            Assert.Contains("\"metricsEndpoint\":\"http://localhost:8000/metrics\"", json);
+            Assert.Contains("\"runningRequests\":2", json);
             Assert.Contains("\"utilyzeAvailable\":true", json);
             Assert.Contains("\"computeSolPercent\":73.42", json);
             Assert.Contains("\"computeSolCeilingPercent\":84", json);

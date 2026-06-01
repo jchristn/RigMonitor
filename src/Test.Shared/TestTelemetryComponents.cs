@@ -15,6 +15,7 @@ namespace Test.Shared
         INetworkRateSampler,
         IGpuTelemetryProvider,
         IOllamaClient,
+        IVllmTelemetryProvider,
         IUtilyzeTelemetryProvider,
         IRuntimeCapabilitiesService
     {
@@ -74,6 +75,11 @@ namespace Test.Shared
         public Func<CancellationToken, Task<OllamaTelemetry?>>? OllamaTelemetryHandler { get; set; } = null;
 
         /// <summary>
+        /// Optional vLLM telemetry handler.
+        /// </summary>
+        public Func<CancellationToken, Task<VllmTelemetry?>>? VllmTelemetryHandler { get; set; } = null;
+
+        /// <summary>
         /// Optional Utilyze telemetry handler.
         /// </summary>
         public Func<CancellationToken, Task<UtilyzeTelemetry?>>? UtilyzeTelemetryHandler { get; set; } = null;
@@ -82,6 +88,11 @@ namespace Test.Shared
         /// Optional Ollama availability handler.
         /// </summary>
         public Func<CancellationToken, Task<bool>>? OllamaAvailabilityHandler { get; set; } = null;
+
+        /// <summary>
+        /// Optional vLLM availability handler.
+        /// </summary>
+        public Func<CancellationToken, Task<bool>>? VllmAvailabilityHandler { get; set; } = null;
 
         /// <summary>
         /// Optional Utilyze availability handler.
@@ -220,6 +231,36 @@ namespace Test.Shared
             }
 
             return Task.FromResult<OllamaTelemetry?>(null);
+        }
+
+        /// <summary>
+        /// Determine whether vLLM is available.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>True when reachable.</returns>
+        Task<bool> IVllmTelemetryProvider.IsAvailableAsync(CancellationToken cancellationToken)
+        {
+            if (VllmAvailabilityHandler != null)
+            {
+                return VllmAvailabilityHandler(cancellationToken);
+            }
+
+            return Task.FromResult(Current.VllmAvailable);
+        }
+
+        /// <summary>
+        /// Capture vLLM telemetry.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>vLLM telemetry when reachable.</returns>
+        Task<VllmTelemetry?> IVllmTelemetryProvider.GetTelemetryAsync(CancellationToken cancellationToken)
+        {
+            if (VllmTelemetryHandler != null)
+            {
+                return VllmTelemetryHandler(cancellationToken);
+            }
+
+            return Task.FromResult<VllmTelemetry?>(null);
         }
 
         /// <summary>

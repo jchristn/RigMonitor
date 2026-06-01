@@ -41,6 +41,11 @@ namespace RigMonitor.Core.Models
         public bool IncludeOllama { get; set; } = true;
 
         /// <summary>
+        /// Whether to include the vLLM section.
+        /// </summary>
+        public bool IncludeVllm { get; set; } = true;
+
+        /// <summary>
         /// Whether to include the Utilyze section.
         /// </summary>
         public bool IncludeUtilyze { get; set; } = true;
@@ -69,6 +74,7 @@ namespace RigMonitor.Core.Models
                 IncludeDisk = false,
                 IncludeGpu = false,
                 IncludeOllama = false,
+                IncludeVllm = false,
                 IncludeUtilyze = false
             };
         }

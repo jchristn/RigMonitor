@@ -63,6 +63,11 @@ namespace RigMonitor.Core.Models
         public TelemetrySectionCollectionStatus Ollama { get; set; } = new TelemetrySectionCollectionStatus();
 
         /// <summary>
+        /// vLLM section metadata.
+        /// </summary>
+        public TelemetrySectionCollectionStatus Vllm { get; set; } = new TelemetrySectionCollectionStatus();
+
+        /// <summary>
         /// Utilyze section metadata.
         /// </summary>
         public TelemetrySectionCollectionStatus Utilyze { get; set; } = new TelemetrySectionCollectionStatus();

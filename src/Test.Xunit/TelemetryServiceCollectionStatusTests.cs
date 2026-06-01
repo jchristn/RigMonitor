@@ -35,7 +35,8 @@ namespace Test.Xunit
             components.DiskTelemetryHandler = _ => CompleteAfterAsync(timeProvider, TimeSpan.FromMilliseconds(9), new DiskTelemetry { ReadOperationsPerSecond = 11D });
             components.GpuTelemetryHandler = _ => CompleteAfterAsync<GpuTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(10), new GpuTelemetry { Vendor = "NVIDIA", ExporterEndpoint = "http://gpu/metrics" });
             components.OllamaTelemetryHandler = _ => CompleteAfterAsync<OllamaTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(11), new OllamaTelemetry { Available = true, BaseUrl = "http://ollama", Version = "0.9.1" });
-            components.UtilyzeTelemetryHandler = _ => CompleteAfterAsync<UtilyzeTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(12), new UtilyzeTelemetry { Available = true, Endpoint = "ws://utilyze/live" });
+            components.VllmTelemetryHandler = _ => CompleteAfterAsync<VllmTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(12), new VllmTelemetry { Available = true, MetricsEndpoint = "http://vllm/metrics" });
+            components.UtilyzeTelemetryHandler = _ => CompleteAfterAsync<UtilyzeTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(13), new UtilyzeTelemetry { Available = true, Endpoint = "ws://utilyze/live" });
 
             TelemetryService service = CreateService(settings, components, timeProvider);
             TelemetrySnapshot snapshot = await service.GetSnapshotAsync(TelemetryRequestOptions.All(), CancellationToken.None);
@@ -44,6 +45,7 @@ namespace Test.Xunit
             Assert.NotNull(snapshot.System);
             Assert.NotNull(snapshot.Gpu);
             Assert.NotNull(snapshot.Ollama);
+            Assert.NotNull(snapshot.Vllm);
             Assert.NotNull(snapshot.Utilyze);
             Assert.Equal(settings.SectionStaleAfterMs, collection.StaleAfterMs);
 
@@ -63,8 +65,12 @@ namespace Test.Xunit
             Assert.Equal(11D, collection.Ollama.LastDurationMs);
             Assert.Equal(TelemetryFreshnessStatusEnum.Fresh, Assert.IsType<TelemetrySectionFreshness>(collection.Ollama.Freshness).Status);
 
+            Assert.Equal(TelemetryCollectionStatusCodeEnum.Ok, collection.Vllm.StatusCode);
+            Assert.Equal(12D, collection.Vllm.LastDurationMs);
+            Assert.Equal(TelemetryFreshnessStatusEnum.Fresh, Assert.IsType<TelemetrySectionFreshness>(collection.Vllm.Freshness).Status);
+
             Assert.Equal(TelemetryCollectionStatusCodeEnum.Ok, collection.Utilyze.StatusCode);
-            Assert.Equal(12D, collection.Utilyze.LastDurationMs);
+            Assert.Equal(13D, collection.Utilyze.LastDurationMs);
             Assert.Equal(TelemetryFreshnessStatusEnum.Fresh, Assert.IsType<TelemetrySectionFreshness>(collection.Utilyze.Freshness).Status);
         }
 
@@ -95,6 +101,7 @@ namespace Test.Xunit
             Assert.Null(snapshot.Disk);
             Assert.Null(snapshot.Gpu);
             Assert.Null(snapshot.Ollama);
+            Assert.Null(snapshot.Vllm);
             Assert.Null(snapshot.Utilyze);
 
             Assert.Equal(TelemetryCollectionStatusCodeEnum.Disabled, collection.System.StatusCode);
@@ -109,6 +116,7 @@ namespace Test.Xunit
             Assert.Equal(TelemetryCollectionStatusCodeEnum.Ok, collection.Cpu.StatusCode);
             Assert.Equal(TelemetryCollectionStatusCodeEnum.Ok, collection.Memory.StatusCode);
             Assert.Equal(TelemetryCollectionStatusCodeEnum.Ok, collection.Network.StatusCode);
+            Assert.Equal(TelemetryCollectionStatusCodeEnum.Disabled, collection.Vllm.StatusCode);
             Assert.Equal(TelemetryCollectionStatusCodeEnum.Disabled, collection.Utilyze.StatusCode);
         }
 
@@ -123,9 +131,11 @@ namespace Test.Xunit
             TelemetrySettings settings = new TelemetrySettings();
             components.Current.NvidiaAvailable = false;
             components.Current.OllamaAvailable = false;
+            components.Current.VllmAvailable = false;
             components.Current.UtilyzeAvailable = false;
             components.GpuTelemetryHandler = _ => Task.FromException<GpuTelemetry?>(new InvalidOperationException("GPU collector should not run when unsupported."));
             components.OllamaTelemetryHandler = _ => Task.FromException<OllamaTelemetry?>(new InvalidOperationException("Ollama collector should not run when unsupported."));
+            components.VllmTelemetryHandler = _ => Task.FromException<VllmTelemetry?>(new InvalidOperationException("vLLM collector should not run when unsupported."));
             components.UtilyzeTelemetryHandler = _ => Task.FromException<UtilyzeTelemetry?>(new InvalidOperationException("Utilyze collector should not run when unsupported."));
 
             TelemetryService service = CreateService(settings, components, timeProvider);
@@ -134,6 +144,7 @@ namespace Test.Xunit
             TelemetryCollectionMetadata collection = Assert.IsType<TelemetryCollectionMetadata>(snapshot.Collection);
             Assert.Null(snapshot.Gpu);
             Assert.Null(snapshot.Ollama);
+            Assert.Null(snapshot.Vllm);
             Assert.Null(snapshot.Utilyze);
 
             Assert.Equal(TelemetryCollectionStatusCodeEnum.Unsupported, collection.Gpu.StatusCode);
@@ -145,6 +156,11 @@ namespace Test.Xunit
             Assert.True(collection.Ollama.Requested);
             Assert.False(collection.Ollama.Supported);
             Assert.Null(collection.Ollama.LastAttemptUtc);
+
+            Assert.Equal(TelemetryCollectionStatusCodeEnum.Unsupported, collection.Vllm.StatusCode);
+            Assert.True(collection.Vllm.Requested);
+            Assert.False(collection.Vllm.Supported);
+            Assert.Null(collection.Vllm.LastAttemptUtc);
 
             Assert.Equal(TelemetryCollectionStatusCodeEnum.Unsupported, collection.Utilyze.StatusCode);
             Assert.True(collection.Utilyze.Requested);
@@ -256,6 +272,7 @@ namespace Test.Xunit
                 components,
                 components,
                 components,
+                components,
                 timeProvider);
         }
 
@@ -268,6 +285,7 @@ namespace Test.Xunit
                     HostPlatform = HostPlatformEnum.Windows,
                     NvidiaAvailable = true,
                     OllamaAvailable = true,
+                    VllmAvailable = true,
                     UtilyzeAvailable = true
                 }
             };

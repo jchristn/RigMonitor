@@ -37,7 +37,7 @@ namespace RigMonitor.Server.Routes
                 HttpMethod.GET,
                 "/v1/telemetry",
                 TelemetryRouteAsync,
-                openApiMetadata: OpenApiRouteMetadata.Create("Telemetry", "Telemetry").WithDescription("Collect a RigMonitor telemetry snapshot. Optional query keys: system, cpu, memory, network, disk, gpu, ollama, utilyze. Presence means true unless explicitly set to false. If no recognized keys are supplied, all sections are included."));
+                openApiMetadata: OpenApiRouteMetadata.Create("Telemetry", "Telemetry").WithDescription("Collect a RigMonitor telemetry snapshot. Optional query keys: system, cpu, memory, network, disk, gpu, ollama, vllm, utilyze. Presence means true unless explicitly set to false. If no recognized keys are supplied, all sections are included."));
         }
 
         private async Task TelemetryRouteAsync(HttpContextBase context)
