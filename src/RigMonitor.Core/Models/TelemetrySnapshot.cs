@@ -29,6 +29,11 @@ namespace RigMonitor.Core.Models
         public bool OllamaAvailable { get; set; } = false;
 
         /// <summary>
+        /// Whether Utilyze telemetry is available.
+        /// </summary>
+        public bool UtilyzeAvailable { get; set; } = false;
+
+        /// <summary>
         /// System metadata.
         /// </summary>
         public SystemTelemetry? System { get; set; } = null;
@@ -62,6 +67,11 @@ namespace RigMonitor.Core.Models
         /// Ollama telemetry when available.
         /// </summary>
         public OllamaTelemetry? Ollama { get; set; } = null;
+
+        /// <summary>
+        /// Utilyze telemetry when available.
+        /// </summary>
+        public UtilyzeTelemetry? Utilyze { get; set; } = null;
 
         /// <summary>
         /// Collection metadata for each telemetry section.

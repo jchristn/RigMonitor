@@ -28,6 +28,7 @@ Detailed endpoint and payload documentation lives in [REST_API.md](./REST_API.md
 - CPU, memory, network, and disk telemetry
 - Optional NVIDIA GPU telemetry through DCGM exporter
 - Optional Ollama telemetry with available models and loaded models
+- Optional Utilyze telemetry through a sidecar WebSocket service for GPU SOL, bandwidth, and attainable ceiling metrics
 - Structured per-section collection metadata with request state, support state, freshness, last success, and stable status codes
 - Same-port dashboard with manual refresh, auto-refresh, and i18n
 - OpenAPI document at `/openapi.json` and Swagger UI at `/openapi`
@@ -53,6 +54,7 @@ Detailed endpoint and payload documentation lives in [REST_API.md](./REST_API.md
 - `disk`
 - `gpu`
 - `ollama`
+- `utilyze`
 
 Rules:
 
@@ -127,6 +129,10 @@ Relevant telemetry settings:
 
 - `Telemetry.DcgmExporterUrl`
 - `Telemetry.OllamaBaseUrl`
+- `Telemetry.UtilyzeEnabled`
+- `Telemetry.UtilyzeLiveUrl`
+- `Telemetry.UtilyzeClientId`
+- `Telemetry.UtilyzeSampleStaleAfterMs`
 - `Telemetry.RequestTimeoutMs`
 - `Telemetry.WarmupDelayMs`
 - `Telemetry.SectionStaleAfterMs`
@@ -152,4 +158,6 @@ This persists settings and logs under `docker/data/`.
 
 - NVIDIA telemetry is available only when the configured DCGM exporter is reachable at startup.
 - Ollama telemetry is available only when the configured Ollama API is reachable at startup.
+- Utilyze telemetry is available only when `Telemetry.UtilyzeEnabled` is `true` and a Utilyze sidecar is reachable at `Telemetry.UtilyzeLiveUrl` during startup. RigMonitor consumes Utilyze over its live WebSocket API and does not launch or supervise `utlz`.
+- Utilyze collection requires NVIDIA profiling permissions on the collecting Linux host. Configure the Utilyze process separately, including `UTLZ_DISABLE_METRICS=1` if you do not want Utilyze to send aggregate roofline data to Systalyze.
 - The dashboard keeps GPU and Ollama cards visible and uses `collection` metadata to explain disabled, unsupported, unavailable, error, and stale states.

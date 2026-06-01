@@ -21,6 +21,7 @@ namespace RigMonitor.Telemetry.Services
         private readonly IRuntimeCapabilitiesService _RuntimeCapabilitiesService;
         private readonly IGpuTelemetryProvider _GpuTelemetryProvider;
         private readonly IOllamaClient _OllamaClient;
+        private readonly IUtilyzeTelemetryProvider _UtilyzeTelemetryProvider;
         private readonly TimeProvider _TimeProvider;
         private readonly Dictionary<string, TelemetrySectionCollectionStatus> _SectionStates;
         private readonly object _SectionStateLock = new object();
@@ -33,6 +34,7 @@ namespace RigMonitor.Telemetry.Services
         private const string _DiskSection = "disk";
         private const string _GpuSection = "gpu";
         private const string _OllamaSection = "ollama";
+        private const string _UtilyzeSection = "utilyze";
 
         /// <summary>
         /// Instantiate the service.
@@ -44,6 +46,7 @@ namespace RigMonitor.Telemetry.Services
         /// <param name="runtimeCapabilitiesService">Capabilities service.</param>
         /// <param name="gpuTelemetryProvider">GPU provider.</param>
         /// <param name="ollamaClient">Ollama client.</param>
+        /// <param name="utilyzeTelemetryProvider">Utilyze provider.</param>
         /// <param name="timeProvider">Time provider used for timestamps and durations.</param>
         public TelemetryService(
             TelemetrySettings settings,
@@ -53,6 +56,7 @@ namespace RigMonitor.Telemetry.Services
             IRuntimeCapabilitiesService runtimeCapabilitiesService,
             IGpuTelemetryProvider gpuTelemetryProvider,
             IOllamaClient ollamaClient,
+            IUtilyzeTelemetryProvider utilyzeTelemetryProvider,
             TimeProvider? timeProvider = null)
         {
             if (settings == null) throw new ArgumentNullException(nameof(settings));
@@ -62,6 +66,7 @@ namespace RigMonitor.Telemetry.Services
             if (runtimeCapabilitiesService == null) throw new ArgumentNullException(nameof(runtimeCapabilitiesService));
             if (gpuTelemetryProvider == null) throw new ArgumentNullException(nameof(gpuTelemetryProvider));
             if (ollamaClient == null) throw new ArgumentNullException(nameof(ollamaClient));
+            if (utilyzeTelemetryProvider == null) throw new ArgumentNullException(nameof(utilyzeTelemetryProvider));
 
             _Settings = settings;
             _SystemTelemetryProvider = systemTelemetryProvider;
@@ -70,6 +75,7 @@ namespace RigMonitor.Telemetry.Services
             _RuntimeCapabilitiesService = runtimeCapabilitiesService;
             _GpuTelemetryProvider = gpuTelemetryProvider;
             _OllamaClient = ollamaClient;
+            _UtilyzeTelemetryProvider = utilyzeTelemetryProvider;
             _TimeProvider = timeProvider ?? TimeProvider.System;
             _SectionStates = CreateSectionStates();
         }
@@ -121,7 +127,8 @@ namespace RigMonitor.Telemetry.Services
                 CollectedUtc = collectedUtc,
                 HostPlatform = capabilities.HostPlatform,
                 NvidiaAvailable = capabilities.NvidiaAvailable,
-                OllamaAvailable = capabilities.OllamaAvailable
+                OllamaAvailable = capabilities.OllamaAvailable,
+                UtilyzeAvailable = capabilities.UtilyzeAvailable
             };
 
             TelemetryCollectionMetadata collection = new TelemetryCollectionMetadata
@@ -184,6 +191,14 @@ namespace RigMonitor.Telemetry.Services
                 capabilities.OllamaAvailable,
                 async (token) => await _OllamaClient.GetTelemetryAsync(token).ConfigureAwait(false),
                 value => snapshot.Ollama = value,
+                cancellationToken).ConfigureAwait(false);
+
+            collection.Utilyze = await CollectSectionAsync(
+                _UtilyzeSection,
+                requestOptions.IncludeUtilyze,
+                capabilities.UtilyzeAvailable,
+                async (token) => await _UtilyzeTelemetryProvider.GetTelemetryAsync(token).ConfigureAwait(false),
+                value => snapshot.Utilyze = value,
                 cancellationToken).ConfigureAwait(false);
 
             snapshot.Collection = collection;
@@ -481,7 +496,8 @@ namespace RigMonitor.Telemetry.Services
                 { _NetworkSection, new TelemetrySectionCollectionStatus() },
                 { _DiskSection, new TelemetrySectionCollectionStatus() },
                 { _GpuSection, new TelemetrySectionCollectionStatus() },
-                { _OllamaSection, new TelemetrySectionCollectionStatus() }
+                { _OllamaSection, new TelemetrySectionCollectionStatus() },
+                { _UtilyzeSection, new TelemetrySectionCollectionStatus() }
             };
         }
 
@@ -500,6 +516,11 @@ namespace RigMonitor.Telemetry.Services
             if (String.Equals(sectionName, _OllamaSection, StringComparison.OrdinalIgnoreCase))
             {
                 return "Ollama";
+            }
+
+            if (String.Equals(sectionName, _UtilyzeSection, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Utilyze";
             }
 
             if (String.IsNullOrWhiteSpace(sectionName))

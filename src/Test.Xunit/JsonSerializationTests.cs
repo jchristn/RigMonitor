@@ -53,6 +53,24 @@ namespace Test.Xunit
                         }
                     }
                 },
+                UtilyzeAvailable = true,
+                Utilyze = new UtilyzeTelemetry
+                {
+                    Available = true,
+                    Endpoint = "ws://127.0.0.1:8079/live",
+                    Devices =
+                    {
+                        new UtilyzeDeviceTelemetry
+                        {
+                            DeviceIndex = 0,
+                            Online = true,
+                            ComputeSolPercent = 73.42D,
+                            MemorySolPercent = 46.18D,
+                            ModelName = "example-model",
+                            ComputeSolCeilingPercent = 84D
+                        }
+                    }
+                },
                 Collection = new TelemetryCollectionMetadata
                 {
                     System = new TelemetrySectionCollectionStatus
@@ -78,6 +96,9 @@ namespace Test.Xunit
             Assert.Contains("\"type\":\"wireless80211\"", json);
             Assert.Contains("\"operationalStatus\":\"up\"", json);
             Assert.Contains("\"driveType\":\"fixed\"", json);
+            Assert.Contains("\"utilyzeAvailable\":true", json);
+            Assert.Contains("\"computeSolPercent\":73.42", json);
+            Assert.Contains("\"computeSolCeilingPercent\":84", json);
             Assert.Contains("\"collection\":", json);
             Assert.Contains("\"statusCode\":\"stale\"", json);
             Assert.Contains("\"freshness\":{\"status\":\"stale\"", json);

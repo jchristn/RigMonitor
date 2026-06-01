@@ -68,8 +68,10 @@ Example:
   "telemetryWarm": true,
   "nvidiaAvailable": false,
   "ollamaAvailable": true,
+  "utilyzeAvailable": false,
   "dcgmExporterUrl": "http://localhost:9400/metrics",
-  "ollamaBaseUrl": "http://localhost:11434"
+  "ollamaBaseUrl": "http://localhost:11434",
+  "utilyzeLiveUrl": "ws://127.0.0.1:8079/live"
 }
 ```
 
@@ -83,6 +85,7 @@ Top-level fields:
 - `hostPlatform`
 - `nvidiaAvailable`
 - `ollamaAvailable`
+- `utilyzeAvailable`
 - `collection`
 - `system`
 - `cpu`
@@ -91,6 +94,7 @@ Top-level fields:
 - `disk`
 - `gpu`
 - `ollama`
+- `utilyze`
 
 Example:
 
@@ -126,6 +130,16 @@ Example:
         "staleAfterMs": 15000
       },
       "message": "GPU telemetry is unsupported on this host."
+    },
+    "utilyze": {
+      "requested": true,
+      "supported": false,
+      "statusCode": "unsupported",
+      "freshness": {
+        "status": "notApplicable",
+        "staleAfterMs": 15000
+      },
+      "message": "Utilyze telemetry is unsupported on this host."
     }
   },
   "system": {
@@ -159,6 +173,7 @@ Example:
 - `collection.disk`
 - `collection.gpu`
 - `collection.ollama`
+- `collection.utilyze`
 
 Each section status object contains:
 
@@ -200,6 +215,7 @@ Recognized selector keys:
 - `disk`
 - `gpu`
 - `ollama`
+- `utilyze`
 
 Rules:
 
@@ -223,6 +239,7 @@ Behavior:
 - omits `system`
 - omits `disk`
 - omits `ollama`
+- omits `utilyze`
 
 Even when a section is omitted by selector, its collection metadata remains present. Example:
 
@@ -247,6 +264,7 @@ Even when a section is omitted by selector, its collection metadata remains pres
 
 - `gpu` is present only when NVIDIA telemetry is supported, requested, and a current sample succeeds.
 - `ollama` is present only when Ollama is supported, requested, and a current sample succeeds.
+- `utilyze` is present only when Utilyze is enabled, reachable, requested, and has a fresh live sample.
 
 Examples of omitted-vs-unhealthy states:
 
@@ -324,6 +342,75 @@ The `ollama` object contains:
 - `loadedModelCount`
 - `availableModels`
 - `loadedModels`
+
+The `utilyze` object contains:
+
+- `available`
+- `endpoint`
+- `collectedUtc`
+- `deviceIds`
+- `devices`
+
+Each `utilyze.devices[]` object contains:
+
+- `deviceIndex`
+- `online`
+- `computeSolPercent`
+- `memorySolPercent`
+- `smActivePercent`
+- `nvmlUtilizationPercent`
+- `pcieTransmitBytesPerSecond`
+- `pcieReceiveBytesPerSecond`
+- `nvlinkTransmitBytesPerSecond`
+- `nvlinkReceiveBytesPerSecond`
+- `modelName`
+- `computeSolCeilingPercent`
+
+Example Utilyze section:
+
+```json
+{
+  "utilyzeAvailable": true,
+  "collection": {
+    "utilyze": {
+      "requested": true,
+      "supported": true,
+      "statusCode": "ok",
+      "lastAttemptUtc": "2026-06-01T20:15:30.122Z",
+      "lastSuccessUtc": "2026-06-01T20:15:30.122Z",
+      "lastDurationMs": 1.7,
+      "freshness": {
+        "status": "fresh",
+        "ageMs": 311,
+        "staleAfterMs": 15000
+      },
+      "message": "Utilyze telemetry collected successfully."
+    }
+  },
+  "utilyze": {
+    "available": true,
+    "endpoint": "ws://127.0.0.1:8079/live",
+    "collectedUtc": "2026-06-01T20:15:29.814Z",
+    "deviceIds": [0],
+    "devices": [
+      {
+        "deviceIndex": 0,
+        "online": true,
+        "computeSolPercent": 73.42,
+        "memorySolPercent": 46.18,
+        "smActivePercent": 91.35,
+        "nvmlUtilizationPercent": 97,
+        "pcieTransmitBytesPerSecond": 128450000,
+        "pcieReceiveBytesPerSecond": 94210000,
+        "nvlinkTransmitBytesPerSecond": 3180000000,
+        "nvlinkReceiveBytesPerSecond": 2940000000,
+        "modelName": "meta-llama/Llama-3.1-70B-Instruct",
+        "computeSolCeilingPercent": 84
+      }
+    ]
+  }
+}
+```
 
 ### `GET /openapi.json`
 

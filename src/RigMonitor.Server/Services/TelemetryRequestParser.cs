@@ -17,7 +17,8 @@ namespace RigMonitor.Server.Services
             "network",
             "disk",
             "gpu",
-            "ollama"
+            "ollama",
+            "utilyze"
         };
 
         /// <summary>
@@ -71,6 +72,7 @@ namespace RigMonitor.Server.Services
             options.IncludeDisk = ReadValue(selectors, "disk");
             options.IncludeGpu = ReadValue(selectors, "gpu");
             options.IncludeOllama = ReadValue(selectors, "ollama");
+            options.IncludeUtilyze = ReadValue(selectors, "utilyze");
             return options;
         }
 

@@ -31,6 +31,7 @@ namespace Test.Xunit
             Assert.True(options.IncludeDisk);
             Assert.True(options.IncludeGpu);
             Assert.True(options.IncludeOllama);
+            Assert.True(options.IncludeUtilyze);
         }
 
         /// <summary>
@@ -48,6 +49,25 @@ namespace Test.Xunit
             Assert.False(options.IncludeDisk);
             Assert.False(options.IncludeGpu);
             Assert.False(options.IncludeOllama);
+            Assert.False(options.IncludeUtilyze);
+        }
+
+        /// <summary>
+        /// Verify Utilyze can be selected independently.
+        /// </summary>
+        [Fact]
+        public void ShouldParseUtilyzeTelemetryQuery()
+        {
+            TelemetryRequestOptions options = TelemetryRequestParser.Parse("/v1/telemetry?utilyze");
+
+            Assert.False(options.IncludeSystem);
+            Assert.False(options.IncludeCpu);
+            Assert.False(options.IncludeMemory);
+            Assert.False(options.IncludeNetwork);
+            Assert.False(options.IncludeDisk);
+            Assert.False(options.IncludeGpu);
+            Assert.False(options.IncludeOllama);
+            Assert.True(options.IncludeUtilyze);
         }
 
         /// <summary>

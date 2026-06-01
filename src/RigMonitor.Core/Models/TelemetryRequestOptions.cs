@@ -41,6 +41,11 @@ namespace RigMonitor.Core.Models
         public bool IncludeOllama { get; set; } = true;
 
         /// <summary>
+        /// Whether to include the Utilyze section.
+        /// </summary>
+        public bool IncludeUtilyze { get; set; } = true;
+
+        /// <summary>
         /// Create an option set with every section enabled.
         /// </summary>
         /// <returns>Telemetry request options.</returns>
@@ -63,7 +68,8 @@ namespace RigMonitor.Core.Models
                 IncludeNetwork = false,
                 IncludeDisk = false,
                 IncludeGpu = false,
-                IncludeOllama = false
+                IncludeOllama = false,
+                IncludeUtilyze = false
             };
         }
     }

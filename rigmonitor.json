@@ -28,6 +28,10 @@
   "telemetry": {
     "dcgmExporterUrl": "http://localhost:9400/metrics",
     "ollamaBaseUrl": "http://localhost:11434",
+    "utilyzeEnabled": false,
+    "utilyzeLiveUrl": "ws://127.0.0.1:8079/live",
+    "utilyzeClientId": "rigmonitor",
+    "utilyzeSampleStaleAfterMs": 5000,
     "requestTimeoutMs": 5000,
     "warmupDelayMs": 1000
   },

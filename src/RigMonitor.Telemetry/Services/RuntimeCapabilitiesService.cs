@@ -16,6 +16,7 @@ namespace RigMonitor.Telemetry.Services
         private readonly TelemetrySettings _Settings;
         private readonly IDcgmExporterClient _DcgmClient;
         private readonly IOllamaClient _OllamaClient;
+        private readonly IUtilyzeTelemetryProvider _UtilyzeTelemetryProvider;
         private readonly RuntimeCapabilities _Current;
 
         /// <summary>
@@ -25,24 +26,29 @@ namespace RigMonitor.Telemetry.Services
         /// <param name="dashboardEnabled">Whether the dashboard is enabled.</param>
         /// <param name="dcgmClient">DCGM client.</param>
         /// <param name="ollamaClient">Ollama client.</param>
+        /// <param name="utilyzeTelemetryProvider">Utilyze provider.</param>
         public RuntimeCapabilitiesService(
             TelemetrySettings settings,
             bool dashboardEnabled,
             IDcgmExporterClient dcgmClient,
-            IOllamaClient ollamaClient)
+            IOllamaClient ollamaClient,
+            IUtilyzeTelemetryProvider utilyzeTelemetryProvider)
         {
             if (settings == null) throw new ArgumentNullException(nameof(settings));
             if (dcgmClient == null) throw new ArgumentNullException(nameof(dcgmClient));
             if (ollamaClient == null) throw new ArgumentNullException(nameof(ollamaClient));
+            if (utilyzeTelemetryProvider == null) throw new ArgumentNullException(nameof(utilyzeTelemetryProvider));
 
             _Settings = settings;
             _DcgmClient = dcgmClient;
             _OllamaClient = ollamaClient;
+            _UtilyzeTelemetryProvider = utilyzeTelemetryProvider;
             _Current = new RuntimeCapabilities
             {
                 DashboardEnabled = dashboardEnabled,
                 DcgmExporterUrl = settings.DcgmExporterUrl,
                 OllamaBaseUrl = settings.OllamaBaseUrl,
+                UtilyzeLiveUrl = settings.UtilyzeLiveUrl,
                 HostPlatform = PlatformHelpers.GetHostPlatform(),
                 CollectedUtc = DateTime.UtcNow
             };
@@ -67,6 +73,7 @@ namespace RigMonitor.Telemetry.Services
         {
             _Current.NvidiaAvailable = await ProbeDcgmAsync(cancellationToken).ConfigureAwait(false);
             _Current.OllamaAvailable = await _OllamaClient.IsAvailableAsync(cancellationToken).ConfigureAwait(false);
+            _Current.UtilyzeAvailable = await _UtilyzeTelemetryProvider.IsAvailableAsync(cancellationToken).ConfigureAwait(false);
             _Current.CollectedUtc = DateTime.UtcNow;
         }
 

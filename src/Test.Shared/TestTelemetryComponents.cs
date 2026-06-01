@@ -15,6 +15,7 @@ namespace Test.Shared
         INetworkRateSampler,
         IGpuTelemetryProvider,
         IOllamaClient,
+        IUtilyzeTelemetryProvider,
         IRuntimeCapabilitiesService
     {
         /// <summary>
@@ -73,9 +74,19 @@ namespace Test.Shared
         public Func<CancellationToken, Task<OllamaTelemetry?>>? OllamaTelemetryHandler { get; set; } = null;
 
         /// <summary>
+        /// Optional Utilyze telemetry handler.
+        /// </summary>
+        public Func<CancellationToken, Task<UtilyzeTelemetry?>>? UtilyzeTelemetryHandler { get; set; } = null;
+
+        /// <summary>
         /// Optional Ollama availability handler.
         /// </summary>
         public Func<CancellationToken, Task<bool>>? OllamaAvailabilityHandler { get; set; } = null;
+
+        /// <summary>
+        /// Optional Utilyze availability handler.
+        /// </summary>
+        public Func<CancellationToken, Task<bool>>? UtilyzeAvailabilityHandler { get; set; } = null;
 
         /// <summary>
         /// Warm any sampler state required by the implementation.
@@ -209,6 +220,36 @@ namespace Test.Shared
             }
 
             return Task.FromResult<OllamaTelemetry?>(null);
+        }
+
+        /// <summary>
+        /// Determine whether Utilyze is available.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>True when reachable.</returns>
+        Task<bool> IUtilyzeTelemetryProvider.IsAvailableAsync(CancellationToken cancellationToken)
+        {
+            if (UtilyzeAvailabilityHandler != null)
+            {
+                return UtilyzeAvailabilityHandler(cancellationToken);
+            }
+
+            return Task.FromResult(Current.UtilyzeAvailable);
+        }
+
+        /// <summary>
+        /// Capture Utilyze telemetry.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Utilyze telemetry when reachable.</returns>
+        Task<UtilyzeTelemetry?> IUtilyzeTelemetryProvider.GetTelemetryAsync(CancellationToken cancellationToken)
+        {
+            if (UtilyzeTelemetryHandler != null)
+            {
+                return UtilyzeTelemetryHandler(cancellationToken);
+            }
+
+            return Task.FromResult<UtilyzeTelemetry?>(null);
         }
 
         /// <summary>

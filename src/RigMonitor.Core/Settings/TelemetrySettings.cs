@@ -18,6 +18,37 @@ namespace RigMonitor.Core.Settings
         public string OllamaBaseUrl { get; set; } = Constants.DefaultOllamaBaseUrl;
 
         /// <summary>
+        /// Whether Utilyze telemetry collection is enabled.
+        /// </summary>
+        public bool UtilyzeEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Utilyze live WebSocket URL.
+        /// </summary>
+        public string UtilyzeLiveUrl { get; set; } = Constants.DefaultUtilyzeLiveUrl;
+
+        /// <summary>
+        /// Client identifier used when connecting to the Utilyze live endpoint.
+        /// </summary>
+        public string UtilyzeClientId { get; set; } = "rigmonitor";
+
+        /// <summary>
+        /// Number of milliseconds after which the latest Utilyze live sample is considered stale.
+        /// Minimum 1000, maximum 3600000.
+        /// </summary>
+        public int UtilyzeSampleStaleAfterMs
+        {
+            get
+            {
+                return _UtilyzeSampleStaleAfterMs;
+            }
+            set
+            {
+                _UtilyzeSampleStaleAfterMs = Math.Clamp(value, 1000, 3600000);
+            }
+        }
+
+        /// <summary>
         /// Outbound request timeout in milliseconds.
         /// Minimum 500, maximum 300000.
         /// </summary>
@@ -68,5 +99,6 @@ namespace RigMonitor.Core.Settings
         private int _RequestTimeoutMs = 5000;
         private int _WarmupDelayMs = 1000;
         private int _SectionStaleAfterMs = 15000;
+        private int _UtilyzeSampleStaleAfterMs = 5000;
     }
 }

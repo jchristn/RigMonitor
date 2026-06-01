@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "8d4924cb-35f5-4a41-9225-3ea16518f1ac",
     "name": "RigMonitor",
-    "description": "# RigMonitor Postman Collection\n\nThis collection targets the local RigMonitor daemon and documents the same-port API and dashboard surface.\n\n## Default Variables\n\n- `baseUrl`: full server URL, default `http://127.0.0.1:9990`\n- `livezPath`: liveness endpoint\n- `readyzPath`: readiness endpoint\n- `capabilitiesPath`: runtime capability endpoint\n- `telemetryPath`: telemetry snapshot endpoint\n- `telemetrySelectiveQuery`: selector example for partial collection\n- `openApiJsonPath`: raw OpenAPI document\n- `openApiUiPath`: Swagger UI route\n- `dashboardPath`: dashboard SPA route\n- `faviconPath`: dashboard favicon route\n\nImport the collection, make sure `baseUrl` matches the daemon listener you started, and then run the requests.\n\n## Response Casing\n\n- Response property names are camelCase.\n- RigMonitor-owned classification values are camelCase strings, for example `windows`, `x64`, `wireless80211`, `up`, and `fixed`.\n- Upstream opaque strings are preserved as provided, for example Ollama quantization labels such as `Q4_K_M`.\n\n## Telemetry Selector Rules\n\n`GET /v1/telemetry` accepts optional query keys for section selection:\n\n- `system`\n- `cpu`\n- `memory`\n- `network`\n- `disk`\n- `gpu`\n- `ollama`\n\nRules:\n\n- If no recognized selector keys are present, **all sections are included by default**.\n- If a selector key is present without a value, it is treated as `true`.\n- If a selector key is present as `=false`, it is treated as `false`.\n- Once one or more recognized selector keys are present, unspecified recognized sections are treated as `false`.\n\nExample:\n\n`/v1/telemetry?cpu&memory&network&gpu=false`\n\nThis includes `cpu`, `memory`, and `network`, explicitly excludes `gpu`, and omits other recognized sections.",
+    "description": "# RigMonitor Postman Collection\n\nThis collection targets the local RigMonitor daemon and documents the same-port API and dashboard surface.\n\n## Default Variables\n\n- `baseUrl`: full server URL, default `http://127.0.0.1:9990`\n- `livezPath`: liveness endpoint\n- `readyzPath`: readiness endpoint\n- `capabilitiesPath`: runtime capability endpoint\n- `telemetryPath`: telemetry snapshot endpoint\n- `telemetrySelectiveQuery`: selector example for partial collection\n- `openApiJsonPath`: raw OpenAPI document\n- `openApiUiPath`: Swagger UI route\n- `dashboardPath`: dashboard SPA route\n- `faviconPath`: dashboard favicon route\n\nImport the collection, make sure `baseUrl` matches the daemon listener you started, and then run the requests.\n\n## Response Casing\n\n- Response property names are camelCase.\n- RigMonitor-owned classification values are camelCase strings, for example `windows`, `x64`, `wireless80211`, `up`, and `fixed`.\n- Upstream opaque strings are preserved as provided, for example Ollama quantization labels such as `Q4_K_M`.\n\n## Telemetry Selector Rules\n\n`GET /v1/telemetry` accepts optional query keys for section selection:\n\n- `system`\n- `cpu`\n- `memory`\n- `network`\n- `disk`\n- `gpu`\n- `ollama`\n- `utilyze`\n\nRules:\n\n- If no recognized selector keys are present, **all sections are included by default**.\n- If a selector key is present without a value, it is treated as `true`.\n- If a selector key is present as `=false`, it is treated as `false`.\n- Once one or more recognized selector keys are present, unspecified recognized sections are treated as `false`.\n\nExample:\n\n`/v1/telemetry?cpu&memory&network&gpu=false`\n\nThis includes `cpu`, `memory`, and `network`, explicitly excludes `gpu`, and omits other recognized sections.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -149,7 +149,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "description": "Returns runtime feature flags and startup probe results, including `hostPlatform`, `dashboardEnabled`, `telemetryWarm`, `nvidiaAvailable`, and `ollamaAvailable`. RigMonitor-owned classification values are returned as camelCase strings.",
+            "description": "Returns runtime feature flags and startup probe results, including `hostPlatform`, `dashboardEnabled`, `telemetryWarm`, `nvidiaAvailable`, `ollamaAvailable`, and `utilyzeAvailable`. RigMonitor-owned classification values are returned as camelCase strings.",
             "url": "{{baseUrl}}{{capabilitiesPath}}"
           },
           "event": [
@@ -165,6 +165,7 @@
                   "pm.collectionVariables.set('lastHostPlatform', String(body.hostPlatform || ''));",
                   "pm.collectionVariables.set('lastNvidiaAvailable', String(body.nvidiaAvailable || false));",
                   "pm.collectionVariables.set('lastOllamaAvailable', String(body.ollamaAvailable || false));",
+                  "pm.collectionVariables.set('lastUtilyzeAvailable', String(body.utilyzeAvailable || false));",
                   "pm.test('Capabilities payload contains expected flags', function () {",
                   "    pm.expect(body).to.have.property('dashboardEnabled');",
                   "    pm.expect(body).to.have.property('telemetryWarm');",
@@ -233,6 +234,34 @@
                   "    pm.expect(body).to.not.have.property('disk');",
                   "    pm.expect(body).to.not.have.property('gpu');",
                   "    pm.expect(body).to.not.have.property('ollama');",
+                  "    pm.expect(body).to.not.have.property('utilyze');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/telemetry (Utilyze Only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Collects only the Utilyze telemetry section and its collection metadata. Requires `Telemetry.UtilyzeEnabled` and a reachable Utilyze sidecar.",
+            "url": "{{baseUrl}}{{telemetryPath}}?utilyze"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test('Collection metadata contains Utilyze state', function () {",
+                  "    pm.expect(body).to.have.property('collection');",
+                  "    pm.expect(body.collection).to.have.property('utilyze');",
                   "});"
                 ]
               }
@@ -409,6 +438,11 @@
     },
     {
       "key": "lastOllamaAvailable",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lastUtilyzeAvailable",
       "value": "",
       "type": "string"
     },

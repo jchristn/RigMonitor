@@ -39,6 +39,11 @@ namespace RigMonitor.Core.Models
         public bool OllamaAvailable { get; set; } = false;
 
         /// <summary>
+        /// Whether Utilyze is reachable.
+        /// </summary>
+        public bool UtilyzeAvailable { get; set; } = false;
+
+        /// <summary>
         /// Configured DCGM exporter endpoint.
         /// </summary>
         public string DcgmExporterUrl { get; set; } = String.Empty;
@@ -47,5 +52,10 @@ namespace RigMonitor.Core.Models
         /// Configured Ollama base URL.
         /// </summary>
         public string OllamaBaseUrl { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Configured Utilyze live endpoint.
+        /// </summary>
+        public string UtilyzeLiveUrl { get; set; } = String.Empty;
     }
 }
