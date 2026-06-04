@@ -13,6 +13,7 @@ namespace RigMonitor.Server.Dashboard
     /// </summary>
     public class StaticFileHandler
     {
+        private const string _DashboardRootEnvironmentVariable = "RIGMONITOR_DASHBOARD_ROOT";
         private readonly AppLogger _Logger;
         private readonly List<string> _SearchRoots = new List<string>();
 
@@ -27,8 +28,20 @@ namespace RigMonitor.Server.Dashboard
             if (logger == null) throw new ArgumentNullException(nameof(logger));
 
             _Logger = logger;
-            _SearchRoots.Add(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "dashboard", "dist")));
-            _SearchRoots.Add(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+            AddSearchRoot(Environment.GetEnvironmentVariable(_DashboardRootEnvironmentVariable));
+            AddSearchRoot(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+
+            foreach (string root in DiscoverDashboardDistRoots(AppContext.BaseDirectory))
+            {
+                AddSearchRoot(root);
+            }
+
+            foreach (string root in DiscoverDashboardDistRoots(Environment.CurrentDirectory))
+            {
+                AddSearchRoot(root);
+            }
+
+            _Logger.Debug("Dashboard static file search roots: " + String.Join("; ", _SearchRoots));
         }
 
         /// <summary>
@@ -92,7 +105,7 @@ namespace RigMonitor.Server.Dashboard
             foreach (string root in _SearchRoots)
             {
                 string candidate = Path.GetFullPath(Path.Combine(root, relativePath));
-                if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                if (!IsPathWithinRoot(candidate, root))
                 {
                     continue;
                 }
@@ -104,6 +117,62 @@ namespace RigMonitor.Server.Dashboard
             }
 
             return null;
+        }
+
+        private void AddSearchRoot(string? root)
+        {
+            if (String.IsNullOrWhiteSpace(root))
+            {
+                return;
+            }
+
+            string fullRoot = Path.GetFullPath(root);
+            foreach (string existingRoot in _SearchRoots)
+            {
+                if (String.Equals(existingRoot, fullRoot, GetPathComparison()))
+                {
+                    return;
+                }
+            }
+
+            _SearchRoots.Add(fullRoot);
+        }
+
+        private static IEnumerable<string> DiscoverDashboardDistRoots(string startDirectory)
+        {
+            DirectoryInfo? directory = new DirectoryInfo(Path.GetFullPath(startDirectory));
+            while (directory != null)
+            {
+                string candidate = Path.Combine(directory.FullName, "dashboard", "dist");
+                if (File.Exists(Path.Combine(candidate, "index.html")))
+                {
+                    yield return candidate;
+                }
+
+                directory = directory.Parent;
+            }
+        }
+
+        private static bool IsPathWithinRoot(string path, string root)
+        {
+            StringComparison comparison = GetPathComparison();
+            if (String.Equals(path, root, comparison))
+            {
+                return true;
+            }
+
+            string normalizedRoot = root.EndsWith(Path.DirectorySeparatorChar)
+                ? root
+                : root + Path.DirectorySeparatorChar;
+
+            return path.StartsWith(normalizedRoot, comparison);
+        }
+
+        private static StringComparison GetPathComparison()
+        {
+            return OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
         }
 
         private static bool HasExtension(string path)

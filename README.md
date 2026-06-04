@@ -104,21 +104,33 @@ The `freshness` object is evaluated from the last successful sample. This means 
 
 ## Local Run
 
-1. Build the dashboard:
+Run these commands from the repository root to run RigMonitor outside of Docker.
+
+1. Build the dashboard bundle:
 
    ```powershell
    cd dashboard
-   npm.cmd install
-   npm.cmd run build
+   npm install
+   npm run build
    ```
 
-2. Run the daemon:
+2. Build the .NET solution. This copies the existing `dashboard/dist` bundle into the server output under `wwwroot`.
 
    ```powershell
-   dotnet run --project src/RigMonitor.Server/RigMonitor.Server.csproj -- --settings rigmonitor.json
+   cd ..\src
+   dotnet build
    ```
 
-3. Open:
+3. Run the server from the build output:
+
+   ```powershell
+   cd RigMonitor.Server\bin\Debug\net10.0
+   .\RigMonitor.Server.exe
+   ```
+
+   The executable uses `rigmonitor.json` from the current directory by default, creating one if it does not exist. To use the repository-root settings file instead, pass `--settings ..\..\..\..\..\rigmonitor.json`.
+
+4. Open:
 
 - Dashboard: `http://localhost:9990/dashboard`
 - OpenAPI UI: `http://localhost:9990/openapi`
