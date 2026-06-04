@@ -23,6 +23,8 @@ It is meant for environments where hardware visibility is not just operationally
 
 Detailed endpoint and payload documentation lives in [REST_API.md](./REST_API.md).
 
+NVIDIA GPU telemetry setup is documented in [INSTALLING_DCGM.md](./INSTALLING_DCGM.md).
+
 ## Features
 
 - CPU, memory, network, and disk telemetry
@@ -159,6 +161,26 @@ Dashboard settings:
 - `Dashboard.Title`
 - `Dashboard.AutoRefreshIntervalMs`
 
+## NVIDIA GPU Telemetry
+
+RigMonitor collects NVIDIA GPU telemetry through NVIDIA DCGM exporter, not directly from `nv-hostengine`.
+
+The default endpoint is:
+
+```text
+http://localhost:9400/metrics
+```
+
+For GPU telemetry to appear:
+
+- NVIDIA drivers and DCGM must be installed.
+- `nv-hostengine` can be running through `nvidia-dcgm.service`, commonly on port `5555`.
+- DCGM exporter must also be installed and running, commonly as `nvidia-dcgm-exporter.service`.
+- `curl http://127.0.0.1:9400/metrics` must return Prometheus metrics containing names such as `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_FB_USED`, or `DCGM_FI_DEV_GPU_TEMP`.
+- RigMonitor must be started after the exporter is reachable, or restarted after installing or fixing the exporter.
+
+See [INSTALLING_DCGM.md](./INSTALLING_DCGM.md) for Ubuntu install, verification, and troubleshooting commands.
+
 ## Docker
 
 Use the bundled compose file:
@@ -172,7 +194,8 @@ This persists settings and logs under `docker/data/`.
 
 ## GPU, Ollama, vLLM, And Utilyze Notes
 
-- NVIDIA telemetry is available only when the configured DCGM exporter is reachable at startup.
+- NVIDIA telemetry is available only when the configured DCGM exporter is reachable at startup. DCGM hostengine alone is not enough.
+- If DCGM exporter is installed or started after RigMonitor, restart RigMonitor so `/v1/capabilities` can refresh `nvidiaAvailable`.
 - Ollama telemetry is available only when the configured Ollama API is reachable at startup.
 - vLLM telemetry is available only when `Telemetry.VllmEnabled` is `true` and the configured Prometheus metrics endpoint is reachable at startup.
 - Utilyze telemetry is available only when `Telemetry.UtilyzeEnabled` is `true` and a Utilyze sidecar is reachable at `Telemetry.UtilyzeLiveUrl` during startup. RigMonitor consumes Utilyze over its live WebSocket API and does not launch or supervise `utlz`.
