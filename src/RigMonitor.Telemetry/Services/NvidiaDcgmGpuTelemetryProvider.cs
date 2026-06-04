@@ -119,6 +119,10 @@ namespace RigMonitor.Telemetry.Services
             {
                 device.Metrics.MemoryFreeMegabytes = value;
             }
+            else if (String.Equals(metricName, "DCGM_FI_DEV_FB_TOTAL", StringComparison.OrdinalIgnoreCase))
+            {
+                device.Metrics.MemoryTotalMegabytes = value;
+            }
             else if (String.Equals(metricName, "DCGM_FI_DEV_GPU_TEMP", StringComparison.OrdinalIgnoreCase))
             {
                 device.Metrics.TemperatureCelsius = value;

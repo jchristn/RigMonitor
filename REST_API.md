@@ -352,6 +352,37 @@ Stale Ollama section after a previous success:
 }
 ```
 
+The `gpu` object contains:
+
+- `vendor`
+- `exporterEndpoint`
+- `devices`
+
+Each `gpu.devices[]` object contains:
+
+- `deviceIndex`
+- `uuid`
+- `busId`
+- `model`
+- `driverVersion`
+- `migProfile`
+- `metrics`
+
+The `gpu.devices[].metrics` object contains:
+
+- `gpuUtilizationPercent`
+- `memoryUsedMegabytes`
+- `memoryFreeMegabytes`
+- `memoryTotalMegabytes`
+- `memoryUtilizationPercent`
+- `temperatureCelsius`
+- `powerUsageWatts`
+- `smClockMHz`
+- `memoryClockMHz`
+- `xidErrors`
+
+`memoryTotalMegabytes` is read from `DCGM_FI_DEV_FB_TOTAL` when present. If the exporter does not emit that metric, RigMonitor derives total framebuffer memory from `DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE`.
+
 The `ollama` object contains:
 
 - `available`

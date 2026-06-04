@@ -9,22 +9,46 @@ export function useTelemetry() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [intervalMs, setIntervalMs] = useState(5000)
   const timerRef = useRef(null)
+  const refreshIdRef = useRef(0)
+
+  function errorText(value) {
+    return value instanceof Error ? value.message : String(value)
+  }
 
   async function refresh() {
-    try {
-      setError('')
-      const [nextCapabilities, nextTelemetry] = await Promise.all([
-        getCapabilities(),
-        getTelemetry(),
-      ])
+    const refreshId = refreshIdRef.current + 1
+    refreshIdRef.current = refreshId
 
-      startTransition(() => {
-        setCapabilities(nextCapabilities)
-        setData(nextTelemetry)
-      })
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
-    } finally {
+    const [capabilitiesResult, telemetryResult] = await Promise.allSettled([
+      getCapabilities(),
+      getTelemetry(),
+    ])
+
+    if (refreshId !== refreshIdRef.current) {
+      return
+    }
+
+    const errors = []
+
+    startTransition(() => {
+      if (capabilitiesResult.status === 'fulfilled') {
+        setCapabilities(capabilitiesResult.value)
+      } else {
+        errors.push(`capabilities: ${errorText(capabilitiesResult.reason)}`)
+      }
+
+      if (telemetryResult.status === 'fulfilled' && telemetryResult.value) {
+        setData(telemetryResult.value)
+      } else if (telemetryResult.status === 'rejected') {
+        errors.push(`telemetry: ${errorText(telemetryResult.reason)}`)
+      } else {
+        errors.push('telemetry: empty response')
+      }
+
+      setError(errors.join('; '))
+    })
+
+    if (refreshId === refreshIdRef.current) {
       setLoading(false)
     }
   }

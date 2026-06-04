@@ -53,6 +53,43 @@ namespace RigMonitor.Core.Models
         }
 
         /// <summary>
+        /// Total framebuffer memory in megabytes.
+        /// </summary>
+        public double MemoryTotalMegabytes
+        {
+            get
+            {
+                if (_MemoryTotalMegabytes > 0D)
+                {
+                    return _MemoryTotalMegabytes;
+                }
+
+                return MemoryUsedMegabytes + MemoryFreeMegabytes;
+            }
+            set
+            {
+                _MemoryTotalMegabytes = Math.Max(0D, value);
+            }
+        }
+
+        /// <summary>
+        /// Framebuffer memory utilization percentage.
+        /// </summary>
+        public double MemoryUtilizationPercent
+        {
+            get
+            {
+                double totalMegabytes = MemoryTotalMegabytes;
+                if (totalMegabytes <= 0D)
+                {
+                    return 0D;
+                }
+
+                return Math.Clamp((MemoryUsedMegabytes / totalMegabytes) * 100D, 0D, 100D);
+            }
+        }
+
+        /// <summary>
         /// GPU temperature in Celsius.
         /// </summary>
         public double TemperatureCelsius
@@ -130,6 +167,7 @@ namespace RigMonitor.Core.Models
         private double _GpuUtilizationPercent = 0D;
         private double _MemoryUsedMegabytes = 0D;
         private double _MemoryFreeMegabytes = 0D;
+        private double _MemoryTotalMegabytes = 0D;
         private double _TemperatureCelsius = 0D;
         private double _PowerUsageWatts = 0D;
         private double _SmClockMHz = 0D;

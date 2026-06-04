@@ -53,6 +53,19 @@ export function formatDuration(value) {
   return `${formatNumber(minutes)}m`
 }
 
+export function formatDurationHms(value) {
+  if (value == null || Number.isNaN(value)) {
+    return formatElapsedMs(value)
+  }
+
+  const totalSeconds = Math.max(0, Math.floor(value / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  return `${formatNumber(hours)}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`
+}
+
 export function formatDateTime(value) {
   if (!value) {
     return '—'
@@ -62,6 +75,27 @@ export function formatDateTime(value) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+export function formatDateTimeWithSeconds(value) {
+  if (!value) {
+    return formatDateTime(value)
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return formatDateTime(null)
+  }
+
+  return new Intl.DateTimeFormat(locale(), {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
+  }).format(date)
 }
 
 export function formatElapsedMs(value) {

@@ -176,7 +176,7 @@ For GPU telemetry to appear:
 - NVIDIA drivers and DCGM must be installed.
 - `nv-hostengine` can be running through `nvidia-dcgm.service`, commonly on port `5555`.
 - DCGM exporter must also be installed and running, commonly as `nvidia-dcgm-exporter.service`.
-- `curl http://127.0.0.1:9400/metrics` must return Prometheus metrics containing names such as `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_FB_USED`, or `DCGM_FI_DEV_GPU_TEMP`.
+- `curl http://127.0.0.1:9400/metrics` must return Prometheus metrics containing names such as `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_FB_FREE`, or `DCGM_FI_DEV_GPU_TEMP`.
 - RigMonitor must be started after the exporter is reachable, or restarted after installing or fixing the exporter.
 
 See [INSTALLING_DCGM.md](./INSTALLING_DCGM.md) for Ubuntu install, verification, and troubleshooting commands.

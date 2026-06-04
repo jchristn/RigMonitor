@@ -135,6 +135,31 @@ a {
   align-items: center;
 }
 
+.inline-alert {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.inline-alert.warning {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.inline-alert strong {
+  font-weight: 700;
+}
+
+.inline-alert span {
+  color: var(--text-secondary);
+}
+
 .button-primary,
 .button-secondary,
 .inline-link {

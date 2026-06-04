@@ -1,10 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { JsonModal } from '../components/JsonModal'
 import { SectionCard } from '../components/SectionCard'
 import { StatCard } from '../components/StatCard'
 import { useTelemetry } from '../hooks/useTelemetry'
-import { formatBytes, formatDateTime, formatDuration, formatNumber, formatPercent } from '../i18n/formatters'
+import {
+  formatBytes,
+  formatDateTime,
+  formatDateTimeWithSeconds,
+  formatDuration,
+  formatDurationHms,
+  formatNumber,
+  formatPercent,
+} from '../i18n/formatters'
 
 const refreshIntervals = [
   { value: 2000, label: '2s' },
@@ -13,6 +21,44 @@ const refreshIntervals = [
   { value: 30000, label: '30s' },
   { value: 60000, label: '60s' },
 ]
+
+function megabytesToBytes(value) {
+  if (value == null || Number.isNaN(value)) {
+    return value
+  }
+
+  return value * 1024 * 1024
+}
+
+function telemetryAgeMs(collectedUtc, nowMs) {
+  if (!collectedUtc) {
+    return null
+  }
+
+  const collectedMs = Date.parse(collectedUtc)
+  if (Number.isNaN(collectedMs)) {
+    return null
+  }
+
+  return Math.max(0, nowMs - collectedMs)
+}
+
+function gpuMemorySummary(gpu) {
+  const devices = gpu?.devices || []
+  if (devices.length < 1) {
+    return '-'
+  }
+
+  const usedMegabytes = devices.reduce((total, device) => total + (device.metrics?.memoryUsedMegabytes || 0), 0)
+  const totalMegabytes = devices.reduce((total, device) => total + (device.metrics?.memoryTotalMegabytes || 0), 0)
+
+  if (totalMegabytes <= 0) {
+    return '-'
+  }
+
+  const utilizationPercent = (usedMegabytes / totalMegabytes) * 100
+  return `${formatBytes(megabytesToBytes(usedMegabytes))} / ${formatBytes(megabytesToBytes(totalMegabytes))} (${formatPercent(utilizationPercent)})`
+}
 
 function StateBox({ title, body, className = '' }) {
   return (
@@ -35,6 +81,7 @@ export function HomeView() {
   const { t } = useTranslation()
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false)
   const [jsonModalValue, setJsonModalValue] = useState('')
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const {
     autoRefresh,
     capabilities,
@@ -47,11 +94,19 @@ export function HomeView() {
     setIntervalMs,
   } = useTelemetry()
 
-  if (loading) {
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setNowMs(Date.now())
+    }, 1000)
+
+    return () => window.clearInterval(timerId)
+  }, [])
+
+  if (loading && !data) {
     return <StateBox title={t('overview.loadingTitle')} body={t('overview.loadingBody')} />
   }
 
-  if (error) {
+  if (error && !data) {
     return <StateBox title={t('overview.errorTitle')} body={`${t('overview.errorBody')} ${error}`} />
   }
 
@@ -74,6 +129,8 @@ export function HomeView() {
   const ollamaStatus = collection.ollama || null
   const vllmStatus = collection.vllm || null
   const utilyzeStatus = collection.utilyze || null
+  const collectedUtc = collection.collectedUtc || data.collectedUtc
+  const ageMs = telemetryAgeMs(collectedUtc, nowMs)
 
   function placeholderMessage(status) {
     return status?.message || t('states.sectionPayloadMissing')
@@ -165,6 +222,13 @@ export function HomeView() {
           </div>
         </section>
 
+        {error ? (
+          <div className="inline-alert warning" role="status">
+            <strong>{t('overview.refreshErrorTitle')}</strong>
+            <span>{`${t('overview.refreshErrorBody')} ${error}`}</span>
+          </div>
+        ) : null}
+
         <div className="pill-row">
           <span className={`pill ${capabilities?.nvidiaAvailable ? 'success' : 'warning'}`}>
             {capabilities?.nvidiaAvailable ? t('overview.capabilities.gpuOn') : t('overview.capabilities.gpuOff')}
@@ -181,9 +245,12 @@ export function HomeView() {
         </div>
 
         <div className="stats-grid">
+          <StatCard label={t('overview.cards.collected')} value={formatDateTimeWithSeconds(collectedUtc)} />
+          <StatCard label={t('overview.cards.telemetryAge')} value={formatDurationHms(ageMs)} />
           <StatCard label={t('overview.cards.platform')} value={data.hostPlatform} />
           <StatCard label={t('overview.cards.uptime')} value={formatDuration(data.system?.uptimeMs)} />
           <StatCard label={t('overview.cards.memory')} value={formatPercent(data.memory?.utilizationPercent)} />
+          <StatCard label={t('overview.cards.gpuMemory')} value={gpuMemorySummary(data.gpu)} />
           <StatCard label={t('overview.cards.cpu')} value={formatPercent(data.cpu?.utilizationPercent)} />
         </div>
 
@@ -399,6 +466,8 @@ export function HomeView() {
                 <thead>
                   <tr>
                     <th>{t('labels.model')}</th>
+                    <th>{t('labels.vram')}</th>
+                    <th>{t('labels.vramUtilization')}</th>
                     <th>{t('labels.utilization')}</th>
                     <th>{t('labels.temperature')}</th>
                     <th>{t('labels.power')}</th>
@@ -408,6 +477,8 @@ export function HomeView() {
                   {data.gpu.devices.map((device) => (
                     <tr key={`${device.deviceIndex}-${device.uuid}`}>
                       <td>{device.model || device.uuid}</td>
+                      <td>{`${formatBytes(megabytesToBytes(device.metrics?.memoryUsedMegabytes))} / ${formatBytes(megabytesToBytes(device.metrics?.memoryTotalMegabytes))}`}</td>
+                      <td>{formatPercent(device.metrics?.memoryUtilizationPercent)}</td>
                       <td>{formatPercent(device.metrics?.gpuUtilizationPercent)}</td>
                       <td>{`${formatNumber(device.metrics?.temperatureCelsius, { maximumFractionDigits: 1 })} C`}</td>
                       <td>{`${formatNumber(device.metrics?.powerUsageWatts, { maximumFractionDigits: 1 })} W`}</td>

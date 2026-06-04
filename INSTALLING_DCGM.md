@@ -54,7 +54,7 @@ Verify that the exporter is listening and emitting metrics:
 
 ```bash
 ss -ltnp | grep ':9400'
-curl -fsS http://127.0.0.1:9400/metrics | grep -E 'DCGM_FI_DEV_(GPU_UTIL|FB_USED|GPU_TEMP)' | head
+curl -fsS http://127.0.0.1:9400/metrics | grep -E 'DCGM_FI_DEV_(GPU_UTIL|FB_USED|FB_FREE|FB_TOTAL|GPU_TEMP)' | head
 ```
 
 Expected output includes Prometheus metric names similar to:
@@ -63,6 +63,7 @@ Expected output includes Prometheus metric names similar to:
 DCGM_FI_DEV_GPU_TEMP
 DCGM_FI_DEV_GPU_UTIL
 DCGM_FI_DEV_FB_USED
+DCGM_FI_DEV_FB_FREE
 ```
 
 Restart RigMonitor after the exporter works, then verify capabilities:
@@ -127,13 +128,14 @@ RigMonitor reports `nvidiaAvailable:false` when the startup probe cannot fetch e
 ```text
 DCGM_FI_DEV_GPU_UTIL
 DCGM_FI_DEV_FB_USED
+DCGM_FI_DEV_FB_FREE
 DCGM_FI_DEV_GPU_TEMP
 ```
 
 Use these checks on the RigMonitor host:
 
 ```bash
-curl -fsS http://127.0.0.1:9400/metrics | grep -E 'DCGM_FI_DEV_(GPU_UTIL|FB_USED|GPU_TEMP)' | head
+curl -fsS http://127.0.0.1:9400/metrics | grep -E 'DCGM_FI_DEV_(GPU_UTIL|FB_USED|FB_FREE|FB_TOTAL|GPU_TEMP)' | head
 ss -ltnp | grep ':9400'
 systemctl status nvidia-dcgm.service nvidia-dcgm-exporter.service --no-pager
 journalctl -u nvidia-dcgm-exporter.service -n 100 --no-pager
