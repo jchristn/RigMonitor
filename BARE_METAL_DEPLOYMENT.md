@@ -45,19 +45,50 @@ You only need the SDK on machines that build or publish RigMonitor. A runtime-on
 
 RigMonitor reads NVIDIA telemetry from NVIDIA DCGM exporter, not directly from `nvidia-smi` or `nv-hostengine`.
 
-For NVIDIA GPU telemetry on the same host:
-
-1. Install NVIDIA drivers.
-2. Install and start DCGM exporter.
-3. Verify exporter metrics before starting RigMonitor.
+For NVIDIA GPU telemetry on the same host, install NVIDIA drivers first, then install DCGM exporter:
 
 ```bash
+sudo apt update
+apt-cache policy datacenter-gpu-manager-exporter
+sudo apt install -y datacenter-gpu-manager-exporter
+```
+
+If `apt-cache policy datacenter-gpu-manager-exporter` does not find a package, configure NVIDIA's Ubuntu package repository for your driver/DCGM stack, then rerun the install command. The detailed DCGM guide includes troubleshooting notes for this case: [INSTALLING_DCGM.md](./INSTALLING_DCGM.md).
+
+Confirm the exporter binary and systemd unit name:
+
+```bash
+command -v dcgm-exporter
+systemctl list-unit-files '*dcgm*exporter*'
+```
+
+On many Ubuntu systems the unit is named `nvidia-dcgm-exporter.service`. Enable and start it:
+
+```bash
+sudo systemctl enable --now nvidia-dcgm-exporter.service
+systemctl status nvidia-dcgm-exporter.service --no-pager
+```
+
+If your host uses a different exporter unit name, substitute that unit name in the `systemctl` commands and in the optional systemd ordering lines for RigMonitor below.
+
+Verify exporter metrics before starting RigMonitor:
+
+```bash
+ss -ltnp | grep ':9400'
 curl -fsS http://127.0.0.1:9400/metrics | grep -E 'DCGM_FI_DEV_(GPU_UTIL|FB_USED|FB_FREE|FB_TOTAL|GPU_TEMP)' | head
 ```
 
+If `nvidia-dcgm.service` or `nv-hostengine` is already running and the exporter fails to start, test the exporter against the existing hostengine:
+
+```bash
+sudo dcgm-exporter -r localhost:5555 -a :9400 -f /etc/dcgm-exporter/default-counters.csv
+```
+
+If that works, adjust your installed `nvidia-dcgm-exporter.service` unit or environment so it connects to the existing hostengine instead of trying to start a conflicting embedded hostengine.
+
 If DCGM exporter is installed or repaired after RigMonitor has already started, restart RigMonitor so capability detection runs again.
 
-Full DCGM exporter setup is documented in [INSTALLING_DCGM.md](./INSTALLING_DCGM.md).
+Full DCGM exporter setup and troubleshooting is documented in [INSTALLING_DCGM.md](./INSTALLING_DCGM.md).
 
 On GB10 unified-memory systems, framebuffer counters may report zero because GPU memory is shared with system RAM. RigMonitor falls back to host physical memory for GPU RAM display on GB10 and marks that memory as shared.
 
