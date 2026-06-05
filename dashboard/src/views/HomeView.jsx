@@ -43,14 +43,46 @@ function telemetryAgeMs(collectedUtc, nowMs) {
   return Math.max(0, nowMs - collectedMs)
 }
 
-function gpuMemorySummary(gpu) {
+function hasGpuMemory(metrics) {
+  return (metrics?.memoryTotalMegabytes || 0) > 0
+}
+
+function gpuMemoryUtilization(metrics) {
+  if (!hasGpuMemory(metrics)) {
+    return '-'
+  }
+
+  return formatPercent(metrics.memoryUtilizationPercent)
+}
+
+function gpuMemoryRange(metrics, sharedLabel) {
+  if (!hasGpuMemory(metrics)) {
+    return '-'
+  }
+
+  const suffix = metrics.memoryShared ? ` (${sharedLabel})` : ''
+  return `${formatBytes(megabytesToBytes(metrics.memoryUsedMegabytes))} / ${formatBytes(megabytesToBytes(metrics.memoryTotalMegabytes))}${suffix}`
+}
+
+function gpuMemorySummary(gpu, sharedLabel) {
   const devices = gpu?.devices || []
   if (devices.length < 1) {
     return '-'
   }
 
-  const usedMegabytes = devices.reduce((total, device) => total + (device.metrics?.memoryUsedMegabytes || 0), 0)
-  const totalMegabytes = devices.reduce((total, device) => total + (device.metrics?.memoryTotalMegabytes || 0), 0)
+  const memoryDevices = devices.filter((device) => hasGpuMemory(device.metrics))
+  if (memoryDevices.length < 1) {
+    return '-'
+  }
+
+  const sharedDevice = memoryDevices.find((device) => device.metrics?.memoryShared)
+  if (sharedDevice) {
+    const metrics = sharedDevice.metrics
+    return `${formatBytes(megabytesToBytes(metrics.memoryUsedMegabytes))} / ${formatBytes(megabytesToBytes(metrics.memoryTotalMegabytes))} (${formatPercent(metrics.memoryUtilizationPercent)}, ${sharedLabel})`
+  }
+
+  const usedMegabytes = memoryDevices.reduce((total, device) => total + (device.metrics?.memoryUsedMegabytes || 0), 0)
+  const totalMegabytes = memoryDevices.reduce((total, device) => total + (device.metrics?.memoryTotalMegabytes || 0), 0)
 
   if (totalMegabytes <= 0) {
     return '-'
@@ -250,7 +282,7 @@ export function HomeView() {
           <StatCard label={t('overview.cards.platform')} value={data.hostPlatform} />
           <StatCard label={t('overview.cards.uptime')} value={formatDuration(data.system?.uptimeMs)} />
           <StatCard label={t('overview.cards.memory')} value={formatPercent(data.memory?.utilizationPercent)} />
-          <StatCard label={t('overview.cards.gpuMemory')} value={gpuMemorySummary(data.gpu)} />
+          <StatCard label={t('overview.cards.gpuMemory')} value={gpuMemorySummary(data.gpu, t('labels.shared'))} />
           <StatCard label={t('overview.cards.cpu')} value={formatPercent(data.cpu?.utilizationPercent)} />
         </div>
 
@@ -477,8 +509,8 @@ export function HomeView() {
                   {data.gpu.devices.map((device) => (
                     <tr key={`${device.deviceIndex}-${device.uuid}`}>
                       <td>{device.model || device.uuid}</td>
-                      <td>{`${formatBytes(megabytesToBytes(device.metrics?.memoryUsedMegabytes))} / ${formatBytes(megabytesToBytes(device.metrics?.memoryTotalMegabytes))}`}</td>
-                      <td>{formatPercent(device.metrics?.memoryUtilizationPercent)}</td>
+                      <td>{gpuMemoryRange(device.metrics, t('labels.shared'))}</td>
+                      <td>{gpuMemoryUtilization(device.metrics)}</td>
                       <td>{formatPercent(device.metrics?.gpuUtilizationPercent)}</td>
                       <td>{`${formatNumber(device.metrics?.temperatureCelsius, { maximumFractionDigits: 1 })} C`}</td>
                       <td>{`${formatNumber(device.metrics?.powerUsageWatts, { maximumFractionDigits: 1 })} W`}</td>

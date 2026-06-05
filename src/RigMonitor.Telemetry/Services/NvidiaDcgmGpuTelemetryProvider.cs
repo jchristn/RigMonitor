@@ -17,6 +17,7 @@ namespace RigMonitor.Telemetry.Services
     {
         private readonly IDcgmExporterClient _Client;
         private readonly TelemetrySettings _Settings;
+        private const string _FramebufferMemorySource = "framebuffer";
 
         /// <summary>
         /// Instantiate the provider.
@@ -114,14 +115,20 @@ namespace RigMonitor.Telemetry.Services
             else if (String.Equals(metricName, "DCGM_FI_DEV_FB_USED", StringComparison.OrdinalIgnoreCase))
             {
                 device.Metrics.MemoryUsedMegabytes = value;
+                device.Metrics.MemorySource = _FramebufferMemorySource;
+                device.Metrics.MemoryShared = false;
             }
             else if (String.Equals(metricName, "DCGM_FI_DEV_FB_FREE", StringComparison.OrdinalIgnoreCase))
             {
                 device.Metrics.MemoryFreeMegabytes = value;
+                device.Metrics.MemorySource = _FramebufferMemorySource;
+                device.Metrics.MemoryShared = false;
             }
             else if (String.Equals(metricName, "DCGM_FI_DEV_FB_TOTAL", StringComparison.OrdinalIgnoreCase))
             {
                 device.Metrics.MemoryTotalMegabytes = value;
+                device.Metrics.MemorySource = _FramebufferMemorySource;
+                device.Metrics.MemoryShared = false;
             }
             else if (String.Equals(metricName, "DCGM_FI_DEV_GPU_TEMP", StringComparison.OrdinalIgnoreCase))
             {

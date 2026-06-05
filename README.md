@@ -179,6 +179,8 @@ For GPU telemetry to appear:
 - `curl http://127.0.0.1:9400/metrics` must return Prometheus metrics containing names such as `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_FB_FREE`, or `DCGM_FI_DEV_GPU_TEMP`.
 - RigMonitor must be started after the exporter is reachable, or restarted after installing or fixing the exporter.
 
+On GB10 unified-memory systems, DCGM may report zero framebuffer memory because GPU memory is shared with system RAM. RigMonitor falls back to host physical memory for GPU RAM display on those systems and marks the GPU memory source as shared.
+
 See [INSTALLING_DCGM.md](./INSTALLING_DCGM.md) for Ubuntu install, verification, and troubleshooting commands.
 
 ## Docker

@@ -261,6 +261,55 @@ namespace Test.Xunit
             Assert.Equal(9D, collection.Cpu.LastDurationMs);
         }
 
+        /// <summary>
+        /// Verify GB10 unified memory systems use host memory when DCGM reports no framebuffer memory.
+        /// </summary>
+        [Fact]
+        public async Task ShouldApplyUnifiedMemoryFallbackForGb10Gpu()
+        {
+            ManualTimeProvider timeProvider = new ManualTimeProvider(new DateTimeOffset(2026, 05, 26, 18, 30, 00, TimeSpan.Zero));
+            TestTelemetryComponents components = CreateComponents();
+            TelemetrySettings settings = new TelemetrySettings();
+
+            components.MemoryTelemetryHandler = _ => CompleteAfterAsync(
+                timeProvider,
+                TimeSpan.FromMilliseconds(5),
+                new MemoryTelemetry
+                {
+                    TotalBytes = 128L * 1024L * 1024L * 1024L,
+                    AvailableBytes = 96L * 1024L * 1024L * 1024L,
+                    UsedBytes = 32L * 1024L * 1024L * 1024L,
+                    UtilizationPercent = 25D
+                });
+
+            components.GpuTelemetryHandler = _ => CompleteAfterAsync<GpuTelemetry?>(
+                timeProvider,
+                TimeSpan.FromMilliseconds(5),
+                new GpuTelemetry
+                {
+                    Vendor = "NVIDIA",
+                    Devices =
+                    {
+                        new GpuDeviceTelemetry
+                        {
+                            DeviceIndex = 0,
+                            Model = "NVIDIA GB10"
+                        }
+                    }
+                });
+
+            TelemetryService service = CreateService(settings, components, timeProvider);
+            TelemetrySnapshot snapshot = await service.GetSnapshotAsync(TelemetryRequestOptions.All(), CancellationToken.None);
+
+            GpuDeviceTelemetry device = Assert.Single(Assert.IsType<GpuTelemetry>(snapshot.Gpu).Devices);
+            Assert.Equal(32768D, device.Metrics.MemoryUsedMegabytes);
+            Assert.Equal(98304D, device.Metrics.MemoryFreeMegabytes);
+            Assert.Equal(131072D, device.Metrics.MemoryTotalMegabytes);
+            Assert.Equal(25D, device.Metrics.MemoryUtilizationPercent);
+            Assert.Equal("unifiedSystemMemory", device.Metrics.MemorySource);
+            Assert.True(device.Metrics.MemoryShared);
+        }
+
         private static TelemetryService CreateService(TelemetrySettings settings, TestTelemetryComponents components, ManualTimeProvider timeProvider)
         {
             return new TelemetryService(

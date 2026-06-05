@@ -37,6 +37,8 @@ namespace Test.Xunit
             Assert.Equal(36864D, device.Metrics.MemoryFreeMegabytes);
             Assert.Equal(49152D, device.Metrics.MemoryTotalMegabytes);
             Assert.Equal(25D, device.Metrics.MemoryUtilizationPercent);
+            Assert.Equal("framebuffer", device.Metrics.MemorySource);
+            Assert.False(device.Metrics.MemoryShared);
         }
 
         /// <summary>

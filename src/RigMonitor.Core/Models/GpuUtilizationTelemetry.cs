@@ -90,6 +90,16 @@ namespace RigMonitor.Core.Models
         }
 
         /// <summary>
+        /// Source of the reported GPU memory values.
+        /// </summary>
+        public string? MemorySource { get; set; } = null;
+
+        /// <summary>
+        /// Whether reported GPU memory is shared with system memory.
+        /// </summary>
+        public bool? MemoryShared { get; set; } = null;
+
+        /// <summary>
         /// GPU temperature in Celsius.
         /// </summary>
         public double TemperatureCelsius

@@ -66,6 +66,8 @@ DCGM_FI_DEV_FB_USED
 DCGM_FI_DEV_FB_FREE
 ```
 
+On GB10 unified-memory systems, `DCGM_FI_DEV_FB_USED` and `DCGM_FI_DEV_FB_FREE` may report zero because there is no dedicated framebuffer memory. RigMonitor falls back to host physical memory for GPU RAM display on GB10 and marks that memory as shared.
+
 Restart RigMonitor after the exporter works, then verify capabilities:
 
 ```bash

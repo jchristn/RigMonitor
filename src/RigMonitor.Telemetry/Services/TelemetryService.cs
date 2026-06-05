@@ -192,6 +192,8 @@ namespace RigMonitor.Telemetry.Services
                 value => snapshot.Gpu = value,
                 cancellationToken).ConfigureAwait(false);
 
+            ApplyUnifiedMemoryGpuFallback(snapshot);
+
             collection.Ollama = await CollectSectionAsync(
                 _OllamaSection,
                 requestOptions.IncludeOllama,
@@ -219,6 +221,51 @@ namespace RigMonitor.Telemetry.Services
             snapshot.Collection = collection;
 
             return snapshot;
+        }
+
+        private static void ApplyUnifiedMemoryGpuFallback(TelemetrySnapshot snapshot)
+        {
+            if (snapshot.Memory == null || snapshot.Gpu == null)
+            {
+                return;
+            }
+
+            if (snapshot.Memory.TotalBytes <= 0L)
+            {
+                return;
+            }
+
+            double totalMegabytes = BytesToMegabytes(snapshot.Memory.TotalBytes);
+            double availableMegabytes = BytesToMegabytes(snapshot.Memory.AvailableBytes);
+            double usedMegabytes = snapshot.Memory.UsedBytes > 0L
+                ? BytesToMegabytes(snapshot.Memory.UsedBytes)
+                : Math.Max(0D, totalMegabytes - availableMegabytes);
+
+            foreach (GpuDeviceTelemetry device in snapshot.Gpu.Devices)
+            {
+                if (device.Metrics.MemoryTotalMegabytes > 0D || !IsUnifiedMemoryGpu(device))
+                {
+                    continue;
+                }
+
+                device.Metrics.MemoryUsedMegabytes = usedMegabytes;
+                device.Metrics.MemoryFreeMegabytes = availableMegabytes;
+                device.Metrics.MemoryTotalMegabytes = totalMegabytes;
+                device.Metrics.MemorySource = "unifiedSystemMemory";
+                device.Metrics.MemoryShared = true;
+            }
+        }
+
+        private static bool IsUnifiedMemoryGpu(GpuDeviceTelemetry device)
+        {
+            string model = device.Model ?? String.Empty;
+            return model.IndexOf("GB10", StringComparison.OrdinalIgnoreCase) >= 0
+                || model.IndexOf("DGX Spark", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static double BytesToMegabytes(long value)
+        {
+            return Math.Max(0L, value) / 1024D / 1024D;
         }
 
         private async Task<TelemetrySectionCollectionStatus> CollectSectionAsync<TTelemetry>(

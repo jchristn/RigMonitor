@@ -375,6 +375,8 @@ The `gpu.devices[].metrics` object contains:
 - `memoryFreeMegabytes`
 - `memoryTotalMegabytes`
 - `memoryUtilizationPercent`
+- `memorySource`
+- `memoryShared`
 - `temperatureCelsius`
 - `powerUsageWatts`
 - `smClockMHz`
@@ -382,6 +384,8 @@ The `gpu.devices[].metrics` object contains:
 - `xidErrors`
 
 `memoryTotalMegabytes` is read from `DCGM_FI_DEV_FB_TOTAL` when present. If the exporter does not emit that metric, RigMonitor derives total framebuffer memory from `DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE`.
+
+On GB10 unified-memory systems where DCGM reports zero framebuffer memory, RigMonitor reports host physical memory in the GPU memory fields and sets `memorySource` to `unifiedSystemMemory` with `memoryShared` set to `true`.
 
 The `ollama` object contains:
 
