@@ -25,6 +25,8 @@ Detailed endpoint and payload documentation lives in [REST_API.md](./REST_API.md
 
 NVIDIA GPU telemetry setup is documented in [INSTALLING_DCGM.md](./INSTALLING_DCGM.md).
 
+Ubuntu bare-metal deployment is documented in [BARE_METAL_DEPLOYMENT.md](./BARE_METAL_DEPLOYMENT.md).
+
 ## Features
 
 - CPU, memory, network, and disk telemetry
