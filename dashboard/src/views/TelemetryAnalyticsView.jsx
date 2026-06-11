@@ -301,7 +301,7 @@ function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, samp
   const { t } = useTranslation()
   const [hoveredPoint, setHoveredPoint] = useState(null)
   const width = 920
-  const height = 390
+  const height = 585
   const padLeft = 64
   const padRight = 18
   const padTop = 18
@@ -706,6 +706,39 @@ export function TelemetryAnalyticsView() {
                 ))}
               </select>
             </label>
+          </div>
+        </section>
+
+        <div className="stats-grid">
+          <StatCard label={t('analytics.cards.samples')} value={formatNumber(rollupResult?.totalSamples)} />
+          <StatCard label={t('analytics.cards.cpu')} value={formatPercent(averageCpu)} />
+          <StatCard label={t('analytics.cards.memory')} value={formatPercent(averageMemory)} />
+          <StatCard label={t('analytics.cards.gpu')} value={formatPercent(averageGpu)} />
+          <StatCard label={t('analytics.cards.gpuTemperature')} value={formatMetric(averageGpuTemperature, 'temperature')} />
+          <StatCard label={t('analytics.cards.latest')} value={latestRecord ? formatDateTimeWithSeconds(latestRecord.persistedUtc) : formatDateTime(null)} />
+        </div>
+
+        <section className="surface analytics-chart-panel">
+          <div className="section-header">
+            <div>
+              <h2>{t('analytics.chartTitle')}</h2>
+              <p>{t(descriptor.labelKey)}</p>
+            </div>
+            <span className="pill">{`${t('analytics.labels.bucketCount')}: ${formatNumber(buckets.length)}`}</span>
+          </div>
+          <RollupChart
+            buckets={buckets}
+            descriptor={descriptor}
+            emptyLabel={t('analytics.emptyChart')}
+            label={t('analytics.chartAria', { metric: t(descriptor.labelKey) })}
+            metricLabel={t(descriptor.labelKey)}
+            sampleLabel={t('analytics.cards.samples')}
+            timeLabel={t('labels.collected')}
+          />
+        </section>
+
+        <section className="surface analytics-controls">
+          <div className="filter-grid">
             <label>
               <span>{t('analytics.filters.hostname')}</span>
               <input className="input" onChange={(event) => updateFilter('hostname', event.target.value)} value={filters.hostname} />
@@ -768,34 +801,6 @@ export function TelemetryAnalyticsView() {
               {t('analytics.actions.reset')}
             </button>
           </div>
-        </section>
-
-        <div className="stats-grid">
-          <StatCard label={t('analytics.cards.samples')} value={formatNumber(rollupResult?.totalSamples)} />
-          <StatCard label={t('analytics.cards.cpu')} value={formatPercent(averageCpu)} />
-          <StatCard label={t('analytics.cards.memory')} value={formatPercent(averageMemory)} />
-          <StatCard label={t('analytics.cards.gpu')} value={formatPercent(averageGpu)} />
-          <StatCard label={t('analytics.cards.gpuTemperature')} value={formatMetric(averageGpuTemperature, 'temperature')} />
-          <StatCard label={t('analytics.cards.latest')} value={latestRecord ? formatDateTimeWithSeconds(latestRecord.persistedUtc) : formatDateTime(null)} />
-        </div>
-
-        <section className="surface analytics-chart-panel">
-          <div className="section-header">
-            <div>
-              <h2>{t('analytics.chartTitle')}</h2>
-              <p>{t(descriptor.labelKey)}</p>
-            </div>
-            <span className="pill">{`${t('analytics.labels.bucketCount')}: ${formatNumber(buckets.length)}`}</span>
-          </div>
-          <RollupChart
-            buckets={buckets}
-            descriptor={descriptor}
-            emptyLabel={t('analytics.emptyChart')}
-            label={t('analytics.chartAria', { metric: t(descriptor.labelKey) })}
-            metricLabel={t(descriptor.labelKey)}
-            sampleLabel={t('analytics.cards.samples')}
-            timeLabel={t('labels.collected')}
-          />
         </section>
 
         <section className="surface analytics-table-panel">
