@@ -7,6 +7,7 @@ namespace RigMonitor.Server
     using System.Threading;
     using System.Threading.Tasks;
     using RigMonitor.Core;
+    using RigMonitor.Core.Database;
     using RigMonitor.Core.Models;
     using RigMonitor.Core.Services.Interfaces;
     using RigMonitor.Core.Settings;
@@ -37,22 +38,28 @@ namespace RigMonitor.Server
         public Webserver Server { get; }
 
         private readonly AppLogger _Logger;
+        private readonly DatabaseDriverBase _Database;
         private readonly ITelemetryService _TelemetryService;
         private readonly IRuntimeCapabilitiesService _RuntimeCapabilitiesService;
+        private readonly TelemetryPersistenceService _TelemetryPersistenceService;
         private readonly StaticFileHandler _StaticFileHandler;
         private int _Started = 0;
 
         private RigMonitorServer(
             RigMonitorSettings settings,
             AppLogger logger,
+            DatabaseDriverBase database,
             ITelemetryService telemetryService,
             IRuntimeCapabilitiesService runtimeCapabilitiesService,
+            TelemetryPersistenceService telemetryPersistenceService,
             StaticFileHandler staticFileHandler)
         {
             Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _Database = database ?? throw new ArgumentNullException(nameof(database));
             _TelemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
             _RuntimeCapabilitiesService = runtimeCapabilitiesService ?? throw new ArgumentNullException(nameof(runtimeCapabilitiesService));
+            _TelemetryPersistenceService = telemetryPersistenceService ?? throw new ArgumentNullException(nameof(telemetryPersistenceService));
             _StaticFileHandler = staticFileHandler ?? throw new ArgumentNullException(nameof(staticFileHandler));
 
             CoreWebserverSettings webserverSettings = new CoreWebserverSettings(Settings.Webserver.Hostname, Settings.Webserver.Port, Settings.Webserver.Ssl);
@@ -102,11 +109,29 @@ namespace RigMonitor.Server
 
             await telemetryService.WarmupAsync(cancellationToken).ConfigureAwait(false);
 
+            DatabaseDriverBase database = DatabaseDriverFactory.Create(settings.Persistence);
+            await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+
+            TelemetryPersistenceService telemetryPersistenceService = new TelemetryPersistenceService(
+                settings.Persistence,
+                database,
+                telemetryService,
+                logger);
+
             StaticFileHandler staticFileHandler = new StaticFileHandler(settings, logger);
-            RigMonitorServer host = new RigMonitorServer(settings, logger, telemetryService, runtimeCapabilitiesService, staticFileHandler);
+            RigMonitorServer host = new RigMonitorServer(
+                settings,
+                logger,
+                database,
+                telemetryService,
+                runtimeCapabilitiesService,
+                telemetryPersistenceService,
+                staticFileHandler);
 
             logger.Debug("Startup initialization complete.");
             logger.Info("Settings loaded from " + settingsFile);
+            logger.Info("Telemetry persistence database: " + settings.Persistence.Database.Type + " " + settings.Persistence.Database.Filename);
+            logger.Info("Telemetry persistence hostname: " + settings.Persistence.Hostname);
             logger.Info("Runtime platform: " + runtimeCapabilitiesService.Current.HostPlatform);
             logger.Info("DCGM available: " + runtimeCapabilitiesService.Current.NvidiaAvailable);
             logger.Info("Ollama available: " + runtimeCapabilitiesService.Current.OllamaAvailable);
@@ -119,13 +144,13 @@ namespace RigMonitor.Server
         /// Start the server.
         /// </summary>
         /// <param name="cancellationToken">Cancellation token.</param>
-        public Task StartAsync(CancellationToken cancellationToken)
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             if (Interlocked.CompareExchange(ref _Started, 1, 0) != 0)
             {
-                return Task.CompletedTask;
+                return;
             }
 
             try
@@ -134,8 +159,8 @@ namespace RigMonitor.Server
                 ConfigureRoutes();
                 // Program owns the shutdown sequence and calls Stop() exactly once.
                 Server.Start(CancellationToken.None);
+                await _TelemetryPersistenceService.StartAsync(cancellationToken).ConfigureAwait(false);
                 _Logger.Info("RigMonitor listening on http" + (Settings.Webserver.Ssl ? "s" : String.Empty) + "://" + Settings.Webserver.Hostname + ":" + Settings.Webserver.Port);
-                return Task.CompletedTask;
             }
             catch
             {
@@ -156,10 +181,15 @@ namespace RigMonitor.Server
 
             _Logger.Debug("Shutdown sequence starting.");
 
+            _TelemetryPersistenceService.StopAsync().GetAwaiter().GetResult();
+
             if (Server.IsListening)
             {
                 Server.Stop();
             }
+
+            _TelemetryPersistenceService.Dispose();
+            _Database.Dispose();
 
             _Logger.Info("RigMonitor stopped");
             _Logger.Debug("Shutdown sequence complete.");
@@ -190,6 +220,7 @@ namespace RigMonitor.Server
         {
             new GeneralRoutes(_TelemetryService, _RuntimeCapabilitiesService).Register(Server);
             new TelemetryRoutes(_TelemetryService).Register(Server);
+            new TelemetryHistoryRoutes(_Database, _TelemetryPersistenceService).Register(Server);
 
             if (Settings.Dashboard.Enabled)
             {

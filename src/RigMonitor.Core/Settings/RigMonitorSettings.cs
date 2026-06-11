@@ -31,5 +31,10 @@ namespace RigMonitor.Core.Settings
         /// Logging configuration.
         /// </summary>
         public LoggingSettings Logging { get; set; } = new LoggingSettings();
+
+        /// <summary>
+        /// Telemetry persistence configuration.
+        /// </summary>
+        public PersistenceSettings Persistence { get; set; } = new PersistenceSettings();
     }
 }

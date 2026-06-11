@@ -542,6 +542,203 @@ Example Utilyze section:
 }
 ```
 
+## Telemetry History
+
+Telemetry history endpoints read and manage samples collected by the background persistence worker. The worker stores queryable scalar columns and the original `TelemetrySnapshot` JSON payload in SQLite by default.
+
+### `GET /v1/telemetry/history/status`
+
+Returns persistence worker and database status.
+
+Example:
+
+```json
+{
+  "enabled": true,
+  "hostname": "localhost",
+  "collectionIntervalMs": 60000,
+  "retentionDays": 30,
+  "databaseType": "Sqlite",
+  "databaseFilename": "data/rigmonitor.telemetry.db",
+  "lastAttemptUtc": "2026-06-11T12:00:00Z",
+  "lastSuccessUtc": "2026-06-11T12:00:00Z",
+  "nextCollectionUtc": "2026-06-11T12:01:00Z"
+}
+```
+
+### `POST /v1/telemetry/history/enumerate`
+
+Returns `EnumerationResult<TelemetrySampleRecord>` using the continuation-token pattern. Use this when clients need stable forward paging over a time range.
+
+Request:
+
+```json
+{
+  "maxResults": 100,
+  "continuationToken": null,
+  "ordering": "createdDescending",
+  "hostnameFilter": "localhost",
+  "startUtc": "2026-06-11T05:00:00Z",
+  "endUtc": "2026-06-11T06:00:00Z"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "maxResults": 100,
+  "totalRecords": 2,
+  "recordsRemaining": 0,
+  "endOfResults": true,
+  "totalMs": 4.2,
+  "objects": [
+    {
+      "id": "tel_...",
+      "hostname": "localhost",
+      "collectedUtc": "2026-06-11T05:40:00Z",
+      "persistedUtc": "2026-06-11T05:40:01Z",
+      "hostPlatform": "windows",
+      "cpuUtilizationPercent": 40,
+      "memoryUtilizationPercent": 70,
+      "gpuAverageUtilizationPercent": 50
+    }
+  ]
+}
+```
+
+### `POST /v1/telemetry/history/search`
+
+Returns a request-history style paged search result ordered by collection time descending.
+
+Request:
+
+```json
+{
+  "hostname": "localhost",
+  "hostPlatform": "windows",
+  "gpuUuid": "GPU-1",
+  "gpuModel": "RTX",
+  "nvidiaAvailable": true,
+  "ollamaAvailable": true,
+  "vllmAvailable": null,
+  "utilyzeAvailable": null,
+  "startUtc": "2026-06-11T05:00:00Z",
+  "endUtc": "2026-06-11T06:00:00Z",
+  "minCpuUtilizationPercent": 10,
+  "maxCpuUtilizationPercent": 90,
+  "minMemoryUtilizationPercent": 25,
+  "maxMemoryUtilizationPercent": 95,
+  "minGpuUtilizationPercent": 0,
+  "maxGpuUtilizationPercent": 100,
+  "minGpuTemperatureCelsius": 40,
+  "maxGpuTemperatureCelsius": 90,
+  "page": 1,
+  "pageSize": 25
+}
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "tel_...",
+      "hostname": "localhost",
+      "collectedUtc": "2026-06-11T05:40:00Z",
+      "hostPlatform": "windows",
+      "cpuUtilizationPercent": 40,
+      "memoryUtilizationPercent": 70,
+      "gpuDeviceCount": 1
+    }
+  ],
+  "page": 1,
+  "pageSize": 25,
+  "totalCount": 1,
+  "totalPages": 1
+}
+```
+
+### `GET /v1/telemetry/history/{sampleId}`
+
+Returns one persisted sample with all scalar fields and the original `snapshot` payload.
+
+Responses:
+
+- `200 OK` with `TelemetrySampleDetail`
+- `404 Not Found` when the sample does not exist
+
+### `POST /v1/telemetry/history/rollups`
+
+Returns bucketized aggregate telemetry over a time range. `startUtc`, `endUtc`, and `bucketMinutes` are authoritative; `includeEmptyBuckets` should be `true` for charting.
+
+Request:
+
+```json
+{
+  "hostname": "localhost",
+  "startUtc": "2026-06-11T05:00:00Z",
+  "endUtc": "2026-06-11T06:00:00Z",
+  "bucketMinutes": 60,
+  "gpuUuid": null,
+  "includeEmptyBuckets": true
+}
+```
+
+Response:
+
+```json
+{
+  "startUtc": "2026-06-11T05:00:00Z",
+  "endUtc": "2026-06-11T06:00:00Z",
+  "bucketMinutes": 60,
+  "totalSamples": 2,
+  "buckets": [
+    {
+      "bucketStartUtc": "2026-06-11T05:00:00Z",
+      "bucketEndUtc": "2026-06-11T06:00:00Z",
+      "sampleCount": 2,
+      "averageCpuUtilizationPercent": 30,
+      "averageMemoryUtilizationPercent": 60,
+      "averageGpuUtilizationPercent": 40,
+      "minGpuUtilizationPercent": 30,
+      "maxGpuUtilizationPercent": 50,
+      "averageGpuTemperatureCelsius": 63
+    }
+  ]
+}
+```
+
+`bucketMinutes` is clamped to `1..1440`. Requests where `endUtc` is not later than `startUtc` return `400`.
+
+### `DELETE /v1/telemetry/history/{sampleId}`
+
+Deletes one sample and cascades child GPU rows.
+
+Response:
+
+```json
+{
+  "deleted": true,
+  "deletedCount": 1
+}
+```
+
+### `DELETE /v1/telemetry/history`
+
+Deletes samples matching a `TelemetryHistorySearchFilter` request body. Use the same filter shape as `POST /v1/telemetry/history/search`.
+
+Response:
+
+```json
+{
+  "deleted": true,
+  "deletedCount": 12
+}
+```
+
 ### `GET /openapi.json`
 
 Returns the generated OpenAPI document for the daemon.

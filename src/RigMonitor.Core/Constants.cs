@@ -39,5 +39,25 @@ namespace RigMonitor.Core
         /// Default Utilyze live telemetry endpoint.
         /// </summary>
         public const string DefaultUtilyzeLiveUrl = "ws://127.0.0.1:8079/live";
+
+        /// <summary>
+        /// Default SQLite telemetry history database filename.
+        /// </summary>
+        public const string DefaultTelemetryHistoryDatabaseFilename = "data/rigmonitor.telemetry.db";
+
+        /// <summary>
+        /// Total generated identifier length including prefix.
+        /// </summary>
+        public const int IdentifierLength = 32;
+
+        /// <summary>
+        /// Telemetry sample identifier prefix.
+        /// </summary>
+        public const string TelemetrySampleIdentifierPrefix = "tel_";
+
+        /// <summary>
+        /// Telemetry GPU sample identifier prefix.
+        /// </summary>
+        public const string TelemetryGpuSampleIdentifierPrefix = "tgd_";
     }
 }

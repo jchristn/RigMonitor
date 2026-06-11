@@ -6,6 +6,7 @@ import './index.css'
 import { LanguageSelector } from './components/LanguageSelector'
 import { HomeView } from './views/HomeView'
 import { OpenApiView } from './views/OpenApiView'
+import { TelemetryAnalyticsView } from './views/TelemetryAnalyticsView'
 
 const themeStorageKey = 'rigmonitor-theme'
 
@@ -29,6 +30,9 @@ function Navigation() {
     <nav className="nav-strip" aria-label={t('chrome.navigation')}>
       <NavLink className="nav-link" to="/overview">
         {t('nav.overview')}
+      </NavLink>
+      <NavLink className="nav-link" to="/analytics">
+        {t('nav.analytics')}
       </NavLink>
       <a className="nav-link" href="/openapi" rel="noreferrer" target="_blank">
         {t('nav.swagger')}
@@ -119,6 +123,7 @@ function DashboardShell() {
         <Routes>
           <Route path="/" element={<Navigate to="/overview" replace />} />
           <Route path="/overview" element={<HomeView />} />
+          <Route path="/analytics" element={<TelemetryAnalyticsView />} />
           <Route path="/api" element={<OpenApiView />} />
           <Route path="*" element={<Navigate to="/overview" replace />} />
         </Routes>

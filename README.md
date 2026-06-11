@@ -35,7 +35,9 @@ Ubuntu bare-metal deployment is documented in [BARE_METAL_DEPLOYMENT.md](./BARE_
 - Optional vLLM telemetry through its Prometheus metrics endpoint
 - Optional Utilyze telemetry through a sidecar WebSocket service for GPU SOL, bandwidth, and attainable ceiling metrics
 - Structured per-section collection metadata with request state, support state, freshness, last success, and stable status codes
-- Same-port dashboard with manual refresh, auto-refresh, i18n, and vLLM/Utilyze status/telemetry cards
+- Local SQLite telemetry persistence with configurable collection cadence, hostname, and retention pruning
+- Search, enumeration, detail, delete, and bucketized roll-up APIs for historical telemetry
+- Same-port dashboard with manual refresh, auto-refresh, i18n, vLLM/Utilyze status/telemetry cards, and historical analytics at `/dashboard/analytics`
 - OpenAPI document at `/openapi.json` and Swagger UI at `/openapi`
 
 ## Endpoints
@@ -44,6 +46,13 @@ Ubuntu bare-metal deployment is documented in [BARE_METAL_DEPLOYMENT.md](./BARE_
 - `GET /readyz`
 - `GET /v1/capabilities`
 - `GET /v1/telemetry`
+- `POST /v1/telemetry/history/enumerate`
+- `POST /v1/telemetry/history/search`
+- `GET /v1/telemetry/history/{sampleId}`
+- `POST /v1/telemetry/history/rollups`
+- `GET /v1/telemetry/history/status`
+- `DELETE /v1/telemetry/history/{sampleId}`
+- `DELETE /v1/telemetry/history`
 - `GET /openapi`
 - `GET /openapi.json`
 - `GET /dashboard`
@@ -163,6 +172,44 @@ Dashboard settings:
 - `Dashboard.Title`
 - `Dashboard.AutoRefreshIntervalMs`
 
+Persistence settings:
+
+- `Persistence.Enabled`: enables the background collector. Default is `true`.
+- `Persistence.CollectionIntervalMs`: full telemetry collection cadence. Default is `60000`.
+- `Persistence.RetentionDays`: number of days to keep persisted telemetry. Default is `30`.
+- `Persistence.PruneIntervalMinutes`: old-row pruning cadence. Default is `60`.
+- `Persistence.Hostname`: host label written to every persistence table. Null or empty values resolve to `localhost`.
+- `Persistence.Database.Type`: currently `Sqlite`.
+- `Persistence.Database.Filename`: SQLite file path. Default is `data/rigmonitor.telemetry.db`.
+- `Persistence.Database.LogQueries`: reserved query logging switch. Default is `false`.
+
+The SQLite driver creates the database directory on startup. Alongside the main database file, SQLite may create `*.db-wal` and `*.db-shm` files; keep those with the database file.
+
+Example:
+
+```json
+{
+  "persistence": {
+    "enabled": true,
+    "collectionIntervalMs": 60000,
+    "retentionDays": 30,
+    "pruneIntervalMinutes": 60,
+    "hostname": "localhost",
+    "database": {
+      "type": "Sqlite",
+      "filename": "data/rigmonitor.telemetry.db",
+      "logQueries": false
+    }
+  }
+}
+```
+
+## Telemetry History
+
+When persistence is enabled, RigMonitor collects the same full snapshot shape returned by `GET /v1/telemetry`, stores queryable scalar columns plus the full JSON payload, and prunes samples older than `Persistence.RetentionDays`. The default retention window is 30 days.
+
+History APIs support continuation-based enumeration, request-history style search, sample drill-down, deletion, and roll-ups such as "average telemetry from 05:00 to 06:00" with configurable bucket sizes. The dashboard analytics page at `/dashboard/analytics` uses those APIs to filter ranges, chart bucketized metrics, page through samples, and inspect the original captured snapshot.
+
 ## NVIDIA GPU Telemetry
 
 RigMonitor collects NVIDIA GPU telemetry through NVIDIA DCGM exporter, not directly from `nv-hostengine`.
@@ -195,6 +242,7 @@ docker compose up --build
 ```
 
 This persists settings and logs under `docker/data/`.
+The same mount also persists `rigmonitor.telemetry.db`, `rigmonitor.telemetry.db-wal`, and `rigmonitor.telemetry.db-shm` when the default SQLite persistence path is used.
 
 ## GPU, Ollama, vLLM, And Utilyze Notes
 

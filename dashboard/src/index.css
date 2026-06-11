@@ -93,6 +93,10 @@ input {
   font: inherit;
 }
 
+input {
+  color: var(--text-primary);
+}
+
 a {
   color: inherit;
 }
@@ -106,6 +110,15 @@ a {
 
 .api-shell {
   padding: 1rem;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .toolbar {
@@ -221,6 +234,138 @@ a {
 .view-grid {
   display: grid;
   gap: 1rem;
+}
+
+.analytics-view {
+  min-width: 0;
+}
+
+.analytics-toolbar {
+  align-items: flex-start;
+}
+
+.analytics-controls {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.quick-range-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.8rem;
+}
+
+.filter-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.filter-grid label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+.filter-grid label span {
+  overflow-wrap: anywhere;
+}
+
+.analytics-chart-panel,
+.analytics-table-panel {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.chart-scroll {
+  overflow-x: auto;
+}
+
+.rollup-chart {
+  display: block;
+  width: 100%;
+  min-width: 46rem;
+  height: auto;
+}
+
+.chart-axis {
+  stroke: var(--border-color);
+  stroke-width: 1.25;
+}
+
+.chart-axis-label {
+  fill: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.chart-area {
+  fill: rgba(59, 130, 246, 0.14);
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--primary-color);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.chart-point {
+  fill: var(--card-bg);
+  stroke: var(--primary-color);
+  stroke-width: 2.25;
+}
+
+.chart-empty {
+  display: grid;
+  min-height: 13rem;
+  place-items: center;
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-color);
+}
+
+.chart-empty p {
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+}
+
+.history-table td,
+.history-table th {
+  white-space: nowrap;
+}
+
+.table-action {
+  padding: 0.48rem 0.7rem;
+}
+
+.pagination-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 1rem;
+}
+
+.pagination-status {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
 }
 
 .overview-grid {

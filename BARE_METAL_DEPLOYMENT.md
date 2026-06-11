@@ -12,7 +12,7 @@ Recommended production layout:
 /opt/rigmonitor/                 Published application files
 /etc/rigmonitor/rigmonitor.json  Runtime configuration
 /var/log/rigmonitor/             Log files
-/var/lib/rigmonitor/             Service account home/state directory
+/var/lib/rigmonitor/             Service account home/state directory and telemetry database
 ```
 
 The examples below install the app under `/opt/rigmonitor` and run it as a dedicated `rigmonitor` user.
@@ -128,7 +128,7 @@ Create the service user and directories:
 
 ```bash
 sudo useradd --system --home-dir /var/lib/rigmonitor --create-home --shell /usr/sbin/nologin rigmonitor
-sudo mkdir -p /opt/rigmonitor /etc/rigmonitor /var/log/rigmonitor
+sudo mkdir -p /opt/rigmonitor /etc/rigmonitor /var/log/rigmonitor /var/lib/rigmonitor
 ```
 
 Install the published app:
@@ -152,6 +152,8 @@ Create the log directory:
 ```bash
 sudo chown rigmonitor:rigmonitor /var/log/rigmonitor
 sudo chmod 750 /var/log/rigmonitor
+sudo chown rigmonitor:rigmonitor /var/lib/rigmonitor
+sudo chmod 750 /var/lib/rigmonitor
 ```
 
 Edit `/etc/rigmonitor/rigmonitor.json` for production:
@@ -176,6 +178,18 @@ Edit `/etc/rigmonitor/rigmonitor.json` for production:
     "fileLogging": true,
     "consoleLogging": true
   },
+  "persistence": {
+    "enabled": true,
+    "collectionIntervalMs": 60000,
+    "retentionDays": 30,
+    "pruneIntervalMinutes": 60,
+    "hostname": "localhost",
+    "database": {
+      "type": "Sqlite",
+      "filename": "/var/lib/rigmonitor/rigmonitor.telemetry.db",
+      "logQueries": false
+    }
+  },
   "dashboard": {
     "enabled": true
   }
@@ -183,6 +197,10 @@ Edit `/etc/rigmonitor/rigmonitor.json` for production:
 ```
 
 Use `hostname: "127.0.0.1"` if RigMonitor should be reachable only from the local machine or from a reverse proxy on the same host. Use `hostname: "0.0.0.0"` to listen on all interfaces.
+
+`persistence.hostname` is the host label written to every telemetry history row. Leave it null or empty to store `localhost`; set a stable machine name when several RigMonitor instances export data to the same downstream workflow.
+
+SQLite creates the main database file plus `rigmonitor.telemetry.db-wal` and `rigmonitor.telemetry.db-shm` while WAL mode is active. Keep all three files in `/var/lib/rigmonitor` and include them in any backup or volume policy.
 
 ## systemd Service
 
@@ -256,6 +274,7 @@ curl -fsS http://127.0.0.1:9990/livez
 curl -fsS http://127.0.0.1:9990/readyz
 curl -fsS http://127.0.0.1:9990/v1/capabilities
 curl -fsS http://127.0.0.1:9990/v1/telemetry
+curl -fsS http://127.0.0.1:9990/v1/telemetry/history/status
 ```
 
 Open the dashboard:
@@ -273,6 +292,7 @@ curl -fsS 'http://127.0.0.1:9990/v1/telemetry?gpu'
 ```
 
 The dashboard should show `GPU RAM` when memory data is available. GB10 systems should show shared GPU RAM.
+The analytics page should be reachable at `http://<host>:9990/dashboard/analytics` after at least one persisted sample has been collected.
 
 ## Upgrade
 
@@ -326,6 +346,19 @@ Service cannot write logs:
 
 - Confirm `logging.logDirectory` points to `/var/log/rigmonitor`.
 - Confirm ownership: `sudo chown rigmonitor:rigmonitor /var/log/rigmonitor`.
+
+Service cannot write telemetry history:
+
+- Confirm `persistence.database.filename` points under `/var/lib/rigmonitor`.
+- Confirm ownership: `sudo chown rigmonitor:rigmonitor /var/lib/rigmonitor`.
+- Confirm the service unit includes `/var/lib/rigmonitor` in `ReadWritePaths`.
+- Check for the main SQLite file plus WAL/SHM files: `ls -la /var/lib/rigmonitor/rigmonitor.telemetry.db*`.
+
+History grows too large:
+
+- Confirm `persistence.retentionDays` is set to the desired retention window.
+- Confirm `persistence.pruneIntervalMinutes` is not set higher than your operational tolerance.
+- Check the status endpoint for the configured retention: `curl -fsS http://127.0.0.1:9990/v1/telemetry/history/status`.
 
 Optional telemetry is missing:
 

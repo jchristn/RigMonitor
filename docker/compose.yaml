@@ -7,5 +7,6 @@ services:
     ports:
       - "9990:9990"
     volumes:
+      # Persists settings, logs, SQLite database, WAL, and SHM files.
       - ./data:/app/data
     restart: unless-stopped

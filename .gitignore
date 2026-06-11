@@ -8,6 +8,12 @@ obj/
 dashboard/node_modules/
 dashboard/dist/
 
+*.db
+*.db-wal
+*.db-shm
+
+data/*
+!data/.gitkeep
 data/logs/
 docker/data/*
 !docker/data/.gitkeep

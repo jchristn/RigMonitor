@@ -302,6 +302,243 @@
       ]
     },
     {
+      "name": "Telemetry History",
+      "description": "Persisted telemetry history, search, roll-up, and deletion endpoints.",
+      "item": [
+        {
+          "name": "GET /v1/telemetry/history/status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns telemetry persistence worker and database status.",
+            "url": "{{baseUrl}}{{telemetryHistoryStatusPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Status payload includes persistence settings', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('enabled');",
+                  "    pm.expect(body).to.have.property('retentionDays');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/telemetry/history/enumerate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"maxResults\": 25,\n  \"continuationToken\": null,\n  \"ordering\": \"createdDescending\",\n  \"hostnameFilter\": null,\n  \"startUtc\": null,\n  \"endUtc\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Enumerates persisted telemetry samples using the EnumerationQuery continuation-token pattern.",
+            "url": "{{baseUrl}}{{telemetryHistoryEnumeratePath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Enumeration response has objects array', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('objects');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/telemetry/history/search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hostname\": null,\n  \"hostPlatform\": null,\n  \"gpuUuid\": null,\n  \"gpuModel\": null,\n  \"nvidiaAvailable\": null,\n  \"ollamaAvailable\": null,\n  \"vllmAvailable\": null,\n  \"utilyzeAvailable\": null,\n  \"startUtc\": null,\n  \"endUtc\": null,\n  \"minCpuUtilizationPercent\": null,\n  \"maxCpuUtilizationPercent\": null,\n  \"minMemoryUtilizationPercent\": null,\n  \"maxMemoryUtilizationPercent\": null,\n  \"minGpuUtilizationPercent\": null,\n  \"maxGpuUtilizationPercent\": null,\n  \"minGpuTemperatureCelsius\": null,\n  \"maxGpuTemperatureCelsius\": null,\n  \"page\": 1,\n  \"pageSize\": 25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Searches persisted telemetry samples with request-history style paging.",
+            "url": "{{baseUrl}}{{telemetryHistorySearchPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "if (body.data && body.data.length > 0) {",
+                  "    pm.collectionVariables.set('lastTelemetrySampleId', body.data[0].id);",
+                  "}",
+                  "pm.test('Search response has paging fields', function () {",
+                  "    pm.expect(body).to.have.property('data');",
+                  "    pm.expect(body).to.have.property('totalCount');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/telemetry/history/{sampleId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns a single persisted sample including the original telemetry snapshot. Run the search request first to set `lastTelemetrySampleId`.",
+            "url": "{{baseUrl}}{{telemetryHistoryDetailPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 404', function () {",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/telemetry/history/rollups",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hostname\": null,\n  \"startUtc\": \"2026-06-11T05:00:00Z\",\n  \"endUtc\": \"2026-06-11T06:00:00Z\",\n  \"bucketMinutes\": 60,\n  \"gpuUuid\": null,\n  \"includeEmptyBuckets\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Returns bucketized averages and min/max values for persisted telemetry.",
+            "url": "{{baseUrl}}{{telemetryHistoryRollupsPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Rollup response has buckets', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('buckets');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /v1/telemetry/history/{sampleId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Deletes the sample referenced by `lastTelemetrySampleId`. Run search first and verify the selected ID before executing.",
+            "url": "{{baseUrl}}{{telemetryHistoryDetailPath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 404', function () {",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /v1/telemetry/history",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hostname\": \"never-match-example\",\n  \"page\": 1,\n  \"pageSize\": 25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Bulk deletes samples matching the filter body. The default example uses a host value that should not match real data.",
+            "url": "{{baseUrl}}{{telemetryHistoryBulkDeletePath}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "OpenAPI",
       "description": "OpenAPI document and UI endpoints exposed by Watson 7.",
       "item": [
@@ -433,6 +670,36 @@
       "type": "string"
     },
     {
+      "key": "telemetryHistoryEnumeratePath",
+      "value": "/v1/telemetry/history/enumerate",
+      "type": "string"
+    },
+    {
+      "key": "telemetryHistorySearchPath",
+      "value": "/v1/telemetry/history/search",
+      "type": "string"
+    },
+    {
+      "key": "telemetryHistoryDetailPath",
+      "value": "/v1/telemetry/history/{{lastTelemetrySampleId}}",
+      "type": "string"
+    },
+    {
+      "key": "telemetryHistoryRollupsPath",
+      "value": "/v1/telemetry/history/rollups",
+      "type": "string"
+    },
+    {
+      "key": "telemetryHistoryStatusPath",
+      "value": "/v1/telemetry/history/status",
+      "type": "string"
+    },
+    {
+      "key": "telemetryHistoryBulkDeletePath",
+      "value": "/v1/telemetry/history",
+      "type": "string"
+    },
+    {
       "key": "telemetrySelectiveQuery",
       "value": "?cpu&memory&network&gpu=false",
       "type": "string"
@@ -494,6 +761,11 @@
     },
     {
       "key": "lastTelemetryCollectedUtc",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lastTelemetrySampleId",
       "value": "",
       "type": "string"
     }
