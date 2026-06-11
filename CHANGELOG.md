@@ -21,6 +21,7 @@
 - Added dashboard analytics page for filtering, charting, paging, and inspecting historical telemetry samples
 - Added analytics quick-range highlighting and a JSON viewer for the current analytics view
 - Refined analytics roll-up chart sampling, Y-axis labels, fixed-size axis text, and hover tooltips
+- Added contextual roll-up chart hover details for CPU cores, memory usage, paired network/disk metrics, GPU ranges, and runtime queues
 - Added server output cleanup scripts for local runtime settings, logs, and SQLite database assets
 - Added root native run scripts that build the dashboard, build the server, prepare local runtime directories, and launch RigMonitor
 - Added Docker build and compose assets

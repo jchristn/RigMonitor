@@ -243,9 +243,34 @@ namespace Test.Xunit
                 Assert.Equal(2L, rollup.TotalSamples);
                 Assert.Equal(2L, rollup.Buckets[0].SampleCount);
                 Assert.Equal(30D, rollup.Buckets[0].AverageCpuUtilizationPercent);
+                Assert.Equal(16D, rollup.Buckets[0].AverageLogicalCoreCount);
                 Assert.Equal(60D, rollup.Buckets[0].AverageMemoryUtilizationPercent);
+                Assert.Equal(1024D * 1024D * 1024D, rollup.Buckets[0].AverageMemoryTotalBytes);
+                Assert.Equal(644245094D, rollup.Buckets[0].AverageMemoryUsedBytes);
+                Assert.Equal(429496729.5D, rollup.Buckets[0].AverageMemoryAvailableBytes);
+                Assert.Equal(1000D, rollup.Buckets[0].AverageNetworkReceiveBytesPerSecond);
+                Assert.Equal(500D, rollup.Buckets[0].AverageNetworkTransmitBytesPerSecond);
+                Assert.Equal(10D, rollup.Buckets[0].AverageDiskReadOperationsPerSecond);
+                Assert.Equal(20D, rollup.Buckets[0].AverageDiskWriteOperationsPerSecond);
+                Assert.Equal(1D, rollup.Buckets[0].AverageDiskReadQueueDepth);
+                Assert.Equal(2D, rollup.Buckets[0].AverageDiskWriteQueueDepth);
+                Assert.Equal(1D, rollup.Buckets[0].AverageGpuDeviceCount);
                 Assert.Equal(40D, rollup.Buckets[0].AverageGpuUtilizationPercent);
+                Assert.Equal(30D, rollup.Buckets[0].MinGpuUtilizationPercent);
+                Assert.Equal(50D, rollup.Buckets[0].MaxGpuUtilizationPercent);
+                Assert.Equal(50D, rollup.Buckets[0].AverageGpuMemoryUtilizationPercent);
+                Assert.Equal(12288D, rollup.Buckets[0].AverageGpuMemoryUsedMegabytes);
+                Assert.Equal(24576D, rollup.Buckets[0].AverageGpuMemoryTotalMegabytes);
                 Assert.Equal(63D, rollup.Buckets[0].AverageGpuTemperatureCelsius);
+                Assert.Equal(60D, rollup.Buckets[0].MinGpuTemperatureCelsius);
+                Assert.Equal(66D, rollup.Buckets[0].MaxGpuTemperatureCelsius);
+                Assert.Equal(250D, rollup.Buckets[0].AverageGpuPowerUsageWatts);
+                Assert.Equal(4D, rollup.Buckets[0].AverageOllamaAvailableModelCount);
+                Assert.Equal(2D, rollup.Buckets[0].AverageOllamaLoadedModelCount);
+                Assert.Equal(3D, rollup.Buckets[0].AverageVllmRunningRequests);
+                Assert.Equal(1D, rollup.Buckets[0].AverageVllmWaitingRequests);
+                Assert.Equal(44D, rollup.Buckets[0].AverageVllmGpuCacheUsagePercent);
+                Assert.Equal(1D, rollup.Buckets[0].AverageUtilyzeDeviceCount);
 
                 TelemetryRollupResult trendRollup = await database.TelemetryHistory.RollupAsync(
                     new TelemetryRollupRequest

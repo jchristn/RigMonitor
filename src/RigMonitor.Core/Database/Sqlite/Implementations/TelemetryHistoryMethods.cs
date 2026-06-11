@@ -222,15 +222,23 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
 
             string whereClause = "WHERE " + String.Join(" AND ", clauses);
             string bucketExpression = "datetime(((CAST(strftime('%s', collectedutc) AS INTEGER) - @startUnix) / @bucketSeconds) * @bucketSeconds + @startUnix, 'unixepoch')";
+            string gpuMetricFilter = String.IsNullOrWhiteSpace(request.GpuUuid) ? String.Empty : " AND g.uuid = @gpuuuid";
 
             string sql =
                 "SELECT " + bucketExpression + " AS bucketutc, COUNT(*) AS samplecount, " +
-                "AVG(cpuutilizationpercent) AS avgcpu, AVG(memoryutilizationpercent) AS avgmemory, " +
+                "AVG(cpuutilizationpercent) AS avgcpu, AVG(logicalcorecount) AS avglogicalcores, " +
+                "AVG(memoryutilizationpercent) AS avgmemory, AVG(memorytotalbytes) AS avgmemorytotalbytes, " +
+                "AVG(memoryusedbytes) AS avgmemoryusedbytes, AVG(memoryavailablebytes) AS avgmemoryavailablebytes, " +
                 "AVG(networkreceivebytespersecond) AS avgnetrx, AVG(networktransmitbytespersecond) AS avgnettx, " +
                 "AVG(diskreadoperationspersecond) AS avgdiskread, AVG(diskwriteoperationspersecond) AS avgdiskwrite, " +
-                "AVG(gpuaverageutilizationpercent) AS avggpu, MIN(gpuaverageutilizationpercent) AS mingpu, MAX(gpuaverageutilizationpercent) AS maxgpu, " +
-                "AVG(gpuaveragememoryutilizationpercent) AS avggpumem, AVG(gpuaveragetemperaturecelsius) AS avggputemp, " +
-                "AVG(gputotalpowerusagewatts) AS avggpupower, AVG(ollamaloadedmodelcount) AS avgollamaloaded, " +
+                "AVG(diskreadqueuedepth) AS avgdiskreadqueue, AVG(diskwritequeuedepth) AS avgdiskwritequeue, " +
+                "AVG(gpudevicecount) AS avggpudevices, AVG(gpuaverageutilizationpercent) AS avggpu, " +
+                "MIN(gpuaverageutilizationpercent) AS mingpu, MAX(gpuaverageutilizationpercent) AS maxgpu, " +
+                "AVG(gpuaveragememoryutilizationpercent) AS avggpumem, " +
+                "AVG((SELECT SUM(g.memoryusedmegabytes) FROM telemetry_gpu_samples g WHERE g.sampleid = telemetry_samples.id" + gpuMetricFilter + ")) AS avggpumemusedmb, " +
+                "AVG((SELECT SUM(g.memorytotalmegabytes) FROM telemetry_gpu_samples g WHERE g.sampleid = telemetry_samples.id" + gpuMetricFilter + ")) AS avggpumemtotalmb, " +
+                "AVG(gpuaveragetemperaturecelsius) AS avggputemp, MIN(gpuaveragetemperaturecelsius) AS mingputemp, MAX(gpuaveragetemperaturecelsius) AS maxgputemp, " +
+                "AVG(gputotalpowerusagewatts) AS avggpupower, AVG(ollamaavailablemodelcount) AS avgollamaavailable, AVG(ollamaloadedmodelcount) AS avgollamaloaded, " +
                 "AVG(vllmrunningrequests) AS avgvllmrunning, AVG(vllmwaitingrequests) AS avgvllmwaiting, " +
                 "AVG(vllmgpucacheusagepercent) AS avgvllmgpucache, AVG(utilyzedevicecount) AS avgutilyzedevices " +
                 "FROM telemetry_samples " + whereClause + " GROUP BY " + bucketExpression + " ORDER BY " + bucketExpression + ";";
@@ -680,17 +688,29 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                     BucketEndUtc = bucketStart.AddMinutes(bucketMinutes),
                     SampleCount = Converters.GetNullableLong(row, "samplecount") ?? 0L,
                     AverageCpuUtilizationPercent = Converters.GetNullableDouble(row, "avgcpu"),
+                    AverageLogicalCoreCount = Converters.GetNullableDouble(row, "avglogicalcores"),
                     AverageMemoryUtilizationPercent = Converters.GetNullableDouble(row, "avgmemory"),
+                    AverageMemoryTotalBytes = Converters.GetNullableDouble(row, "avgmemorytotalbytes"),
+                    AverageMemoryUsedBytes = Converters.GetNullableDouble(row, "avgmemoryusedbytes"),
+                    AverageMemoryAvailableBytes = Converters.GetNullableDouble(row, "avgmemoryavailablebytes"),
                     AverageNetworkReceiveBytesPerSecond = Converters.GetNullableDouble(row, "avgnetrx"),
-                AverageNetworkTransmitBytesPerSecond = Converters.GetNullableDouble(row, "avgnettx"),
+                    AverageNetworkTransmitBytesPerSecond = Converters.GetNullableDouble(row, "avgnettx"),
                     AverageDiskReadOperationsPerSecond = Converters.GetNullableDouble(row, "avgdiskread"),
                     AverageDiskWriteOperationsPerSecond = Converters.GetNullableDouble(row, "avgdiskwrite"),
+                    AverageDiskReadQueueDepth = Converters.GetNullableDouble(row, "avgdiskreadqueue"),
+                    AverageDiskWriteQueueDepth = Converters.GetNullableDouble(row, "avgdiskwritequeue"),
+                    AverageGpuDeviceCount = Converters.GetNullableDouble(row, "avggpudevices"),
                     AverageGpuUtilizationPercent = Converters.GetNullableDouble(row, "avggpu"),
                     MinGpuUtilizationPercent = Converters.GetNullableDouble(row, "mingpu"),
                     MaxGpuUtilizationPercent = Converters.GetNullableDouble(row, "maxgpu"),
                     AverageGpuMemoryUtilizationPercent = Converters.GetNullableDouble(row, "avggpumem"),
+                    AverageGpuMemoryUsedMegabytes = Converters.GetNullableDouble(row, "avggpumemusedmb"),
+                    AverageGpuMemoryTotalMegabytes = Converters.GetNullableDouble(row, "avggpumemtotalmb"),
                     AverageGpuTemperatureCelsius = Converters.GetNullableDouble(row, "avggputemp"),
+                    MinGpuTemperatureCelsius = Converters.GetNullableDouble(row, "mingputemp"),
+                    MaxGpuTemperatureCelsius = Converters.GetNullableDouble(row, "maxgputemp"),
                     AverageGpuPowerUsageWatts = Converters.GetNullableDouble(row, "avggpupower"),
+                    AverageOllamaAvailableModelCount = Converters.GetNullableDouble(row, "avgollamaavailable"),
                     AverageOllamaLoadedModelCount = Converters.GetNullableDouble(row, "avgollamaloaded"),
                     AverageVllmRunningRequests = Converters.GetNullableDouble(row, "avgvllmrunning"),
                     AverageVllmWaitingRequests = Converters.GetNullableDouble(row, "avgvllmwaiting"),

@@ -195,6 +195,99 @@ function weightedAverage(buckets, field) {
   return count > 0 ? total / count : null
 }
 
+function hasValue(value) {
+  return value != null && !Number.isNaN(value)
+}
+
+function formatMegabytes(value) {
+  return hasValue(value) ? formatBytes(value * 1024 * 1024) : formatBytes(null)
+}
+
+function formatOpsPerSecond(value) {
+  return hasValue(value) ? `${formatNumber(value, { maximumFractionDigits: 2 })}/s` : formatNumber(null)
+}
+
+function formatRange(minValue, maxValue, type) {
+  if (!hasValue(minValue) && !hasValue(maxValue)) {
+    return formatNumber(null)
+  }
+
+  return `${formatMetric(minValue, type)} - ${formatMetric(maxValue, type)}`
+}
+
+function buildTooltipRows(point, descriptor, t) {
+  const bucket = point.bucket
+  const rows = []
+
+  if (descriptor.key === 'cpu') {
+    if (hasValue(bucket.averageCpuUtilizationPercent) && hasValue(bucket.averageLogicalCoreCount)) {
+      const usedCores = (bucket.averageCpuUtilizationPercent / 100) * bucket.averageLogicalCoreCount
+      rows.push(`${t('analytics.tooltip.cpuCores')}: ${formatNumber(usedCores, { maximumFractionDigits: 1 })} / ${formatNumber(bucket.averageLogicalCoreCount, { maximumFractionDigits: 1 })}`)
+    }
+  } else if (descriptor.key === 'memory') {
+    if (hasValue(bucket.averageMemoryUsedBytes) || hasValue(bucket.averageMemoryTotalBytes)) {
+      rows.push(`${t('analytics.tooltip.memoryUsed')}: ${formatBytes(bucket.averageMemoryUsedBytes)} / ${formatBytes(bucket.averageMemoryTotalBytes)}`)
+    }
+
+    if (hasValue(bucket.averageMemoryAvailableBytes)) {
+      rows.push(`${t('analytics.tooltip.memoryAvailable')}: ${formatBytes(bucket.averageMemoryAvailableBytes)}`)
+    }
+  } else if (descriptor.key === 'gpu') {
+    rows.push(`${t('analytics.tooltip.range')}: ${formatRange(bucket.minGpuUtilizationPercent, bucket.maxGpuUtilizationPercent, 'percent')}`)
+    if (hasValue(bucket.averageGpuDeviceCount)) {
+      rows.push(`${t('analytics.tooltip.gpuDevices')}: ${formatNumber(bucket.averageGpuDeviceCount, { maximumFractionDigits: 1 })}`)
+    }
+  } else if (descriptor.key === 'gpuMemory') {
+    if (hasValue(bucket.averageGpuMemoryUsedMegabytes) || hasValue(bucket.averageGpuMemoryTotalMegabytes)) {
+      rows.push(`${t('analytics.tooltip.gpuMemoryUsed')}: ${formatMegabytes(bucket.averageGpuMemoryUsedMegabytes)} / ${formatMegabytes(bucket.averageGpuMemoryTotalMegabytes)}`)
+    }
+
+    if (hasValue(bucket.averageGpuDeviceCount)) {
+      rows.push(`${t('analytics.tooltip.gpuDevices')}: ${formatNumber(bucket.averageGpuDeviceCount, { maximumFractionDigits: 1 })}`)
+    }
+  } else if (descriptor.key === 'gpuTemperature') {
+    rows.push(`${t('analytics.tooltip.range')}: ${formatRange(bucket.minGpuTemperatureCelsius, bucket.maxGpuTemperatureCelsius, 'temperature')}`)
+    if (hasValue(bucket.averageGpuDeviceCount)) {
+      rows.push(`${t('analytics.tooltip.gpuDevices')}: ${formatNumber(bucket.averageGpuDeviceCount, { maximumFractionDigits: 1 })}`)
+    }
+  } else if (descriptor.key === 'gpuPower') {
+    if (hasValue(bucket.averageGpuDeviceCount)) {
+      rows.push(`${t('analytics.tooltip.gpuDevices')}: ${formatNumber(bucket.averageGpuDeviceCount, { maximumFractionDigits: 1 })}`)
+    }
+  } else if (descriptor.key === 'networkRx' || descriptor.key === 'networkTx') {
+    const receive = bucket.averageNetworkReceiveBytesPerSecond
+    const transmit = bucket.averageNetworkTransmitBytesPerSecond
+    rows.push(`${t('analytics.tooltip.networkReceive')}: ${formatMetric(receive, 'bytesPerSecond')}`)
+    rows.push(`${t('analytics.tooltip.networkTransmit')}: ${formatMetric(transmit, 'bytesPerSecond')}`)
+
+    if (hasValue(receive) || hasValue(transmit)) {
+      rows.push(`${t('analytics.tooltip.networkTotal')}: ${formatMetric((receive || 0) + (transmit || 0), 'bytesPerSecond')}`)
+    }
+  } else if (descriptor.key === 'diskRead' || descriptor.key === 'diskWrite') {
+    rows.push(`${t('analytics.tooltip.diskReads')}: ${formatOpsPerSecond(bucket.averageDiskReadOperationsPerSecond)}`)
+    rows.push(`${t('analytics.tooltip.diskWrites')}: ${formatOpsPerSecond(bucket.averageDiskWriteOperationsPerSecond)}`)
+
+    if (hasValue(bucket.averageDiskReadQueueDepth) || hasValue(bucket.averageDiskWriteQueueDepth)) {
+      rows.push(`${t('analytics.tooltip.diskQueue')}: ${formatNumber(bucket.averageDiskReadQueueDepth, { maximumFractionDigits: 2 })} / ${formatNumber(bucket.averageDiskWriteQueueDepth, { maximumFractionDigits: 2 })}`)
+    }
+  } else if (descriptor.key === 'ollamaLoaded') {
+    if (hasValue(bucket.averageOllamaLoadedModelCount) || hasValue(bucket.averageOllamaAvailableModelCount)) {
+      rows.push(`${t('analytics.tooltip.ollamaModels')}: ${formatNumber(bucket.averageOllamaLoadedModelCount, { maximumFractionDigits: 1 })} / ${formatNumber(bucket.averageOllamaAvailableModelCount, { maximumFractionDigits: 1 })}`)
+    }
+  } else if (descriptor.key === 'vllmRunning' || descriptor.key === 'vllmWaiting') {
+    const running = bucket.averageVllmRunningRequests
+    const waiting = bucket.averageVllmWaitingRequests
+    rows.push(`${t('analytics.tooltip.vllmRunning')}: ${formatNumber(running, { maximumFractionDigits: 1 })}`)
+    rows.push(`${t('analytics.tooltip.vllmWaiting')}: ${formatNumber(waiting, { maximumFractionDigits: 1 })}`)
+
+    if (hasValue(running) || hasValue(waiting)) {
+      rows.push(`${t('analytics.tooltip.vllmTotal')}: ${formatNumber((running || 0) + (waiting || 0), { maximumFractionDigits: 1 })}`)
+    }
+  }
+
+  return rows
+}
+
 function StateBox({ title, body }) {
   return (
     <section className="surface state-box">
@@ -205,6 +298,7 @@ function StateBox({ title, body }) {
 }
 
 function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, sampleLabel, timeLabel }) {
+  const { t } = useTranslation()
   const [hoveredPoint, setHoveredPoint] = useState(null)
   const width = 920
   const height = 260
@@ -246,8 +340,9 @@ function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, samp
   const area = `${padLeft},${padTop + plotHeight} ${polyline} ${padLeft + plotWidth},${padTop + plotHeight}`
   const firstBucket = buckets[0]
   const lastBucket = buckets[buckets.length - 1]
-  const tooltipWidth = 250
-  const tooltipHeight = 68
+  const tooltipRows = hoveredPoint ? buildTooltipRows(hoveredPoint, descriptor, t) : []
+  const tooltipWidth = 300
+  const tooltipHeight = 68 + tooltipRows.length * 15
   const tooltipX = hoveredPoint
     ? (hoveredPoint.x + tooltipWidth + 14 > width - padRight ? hoveredPoint.x - tooltipWidth - 14 : hoveredPoint.x + 14)
     : 0
@@ -313,6 +408,9 @@ function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, samp
             <text className="chart-tooltip-text" x={tooltipX + 10} y={tooltipY + 16}>
               <tspan className="chart-tooltip-title">{metricLabel}</tspan>
               <tspan x={tooltipX + 10} dy="15">{formatMetric(hoveredPoint.value, descriptor.type)}</tspan>
+              {tooltipRows.map((row, index) => (
+                <tspan key={`${row}-${index}`} x={tooltipX + 10} dy="15">{row}</tspan>
+              ))}
               <tspan x={tooltipX + 10} dy="15">{`${timeLabel}: ${formatDateTimeWithSeconds(hoveredPoint.bucket.bucketStartUtc)}`}</tspan>
               <tspan x={tooltipX + 10} dy="15">{`${sampleLabel}: ${formatNumber(hoveredPoint.bucket.sampleCount || 0)}`}</tspan>
             </text>

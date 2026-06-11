@@ -28,9 +28,29 @@ namespace RigMonitor.Core.Models
         public double? AverageCpuUtilizationPercent { get; set; } = null;
 
         /// <summary>
+        /// Average logical CPU core count.
+        /// </summary>
+        public double? AverageLogicalCoreCount { get; set; } = null;
+
+        /// <summary>
         /// Average memory utilization percentage.
         /// </summary>
         public double? AverageMemoryUtilizationPercent { get; set; } = null;
+
+        /// <summary>
+        /// Average memory total bytes.
+        /// </summary>
+        public double? AverageMemoryTotalBytes { get; set; } = null;
+
+        /// <summary>
+        /// Average memory used bytes.
+        /// </summary>
+        public double? AverageMemoryUsedBytes { get; set; } = null;
+
+        /// <summary>
+        /// Average memory available bytes.
+        /// </summary>
+        public double? AverageMemoryAvailableBytes { get; set; } = null;
 
         /// <summary>
         /// Average network receive bytes per second.
@@ -53,6 +73,21 @@ namespace RigMonitor.Core.Models
         public double? AverageDiskWriteOperationsPerSecond { get; set; } = null;
 
         /// <summary>
+        /// Average disk read queue depth.
+        /// </summary>
+        public double? AverageDiskReadQueueDepth { get; set; } = null;
+
+        /// <summary>
+        /// Average disk write queue depth.
+        /// </summary>
+        public double? AverageDiskWriteQueueDepth { get; set; } = null;
+
+        /// <summary>
+        /// Average GPU device count.
+        /// </summary>
+        public double? AverageGpuDeviceCount { get; set; } = null;
+
+        /// <summary>
         /// Average GPU utilization percentage.
         /// </summary>
         public double? AverageGpuUtilizationPercent { get; set; } = null;
@@ -73,14 +108,39 @@ namespace RigMonitor.Core.Models
         public double? AverageGpuMemoryUtilizationPercent { get; set; } = null;
 
         /// <summary>
+        /// Average GPU memory used in megabytes.
+        /// </summary>
+        public double? AverageGpuMemoryUsedMegabytes { get; set; } = null;
+
+        /// <summary>
+        /// Average GPU memory total in megabytes.
+        /// </summary>
+        public double? AverageGpuMemoryTotalMegabytes { get; set; } = null;
+
+        /// <summary>
         /// Average GPU temperature in Celsius.
         /// </summary>
         public double? AverageGpuTemperatureCelsius { get; set; } = null;
 
         /// <summary>
+        /// Minimum GPU temperature in Celsius.
+        /// </summary>
+        public double? MinGpuTemperatureCelsius { get; set; } = null;
+
+        /// <summary>
+        /// Maximum GPU temperature in Celsius.
+        /// </summary>
+        public double? MaxGpuTemperatureCelsius { get; set; } = null;
+
+        /// <summary>
         /// Average total GPU power usage in watts.
         /// </summary>
         public double? AverageGpuPowerUsageWatts { get; set; } = null;
+
+        /// <summary>
+        /// Average Ollama available model count.
+        /// </summary>
+        public double? AverageOllamaAvailableModelCount { get; set; } = null;
 
         /// <summary>
         /// Average Ollama loaded model count.
