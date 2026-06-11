@@ -46,6 +46,6 @@ namespace RigMonitor.Core.Settings
         /// <summary>
         /// Minimum log severity.
         /// </summary>
-        public LogSeverityEnum MinimumSeverity { get; set; } = LogSeverityEnum.Info;
+        public LogSeverityEnum MinimumSeverity { get; set; } = LogSeverityEnum.Debug;
     }
 }

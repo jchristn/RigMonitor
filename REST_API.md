@@ -110,6 +110,8 @@ Example:
   "hostPlatform": "windows",
   "nvidiaAvailable": false,
   "ollamaAvailable": true,
+  "vllmAvailable": false,
+  "utilyzeAvailable": false,
   "collection": {
     "collectedUtc": "2026-05-18T14:12:13.6414917Z",
     "staleAfterMs": 15000,
@@ -546,6 +548,8 @@ Example Utilyze section:
 
 Telemetry history endpoints read and manage samples collected by the background persistence worker. The worker stores queryable scalar columns and the original `TelemetrySnapshot` JSON payload in SQLite by default.
 
+Persisted sample identifiers are PrettyId K-sortable IDs with the `tel_` prefix and a maximum length of 32 characters.
+
 ### `GET /v1/telemetry/history/status`
 
 Returns persistence worker and database status.
@@ -556,13 +560,13 @@ Example:
 {
   "enabled": true,
   "hostname": "localhost",
-  "collectionIntervalMs": 60000,
+  "collectionIntervalMs": 15000,
   "retentionDays": 30,
   "databaseType": "Sqlite",
   "databaseFilename": "data/rigmonitor.telemetry.db",
   "lastAttemptUtc": "2026-06-11T12:00:00Z",
   "lastSuccessUtc": "2026-06-11T12:00:00Z",
-  "nextCollectionUtc": "2026-06-11T12:01:00Z"
+  "nextCollectionUtc": "2026-06-11T12:00:15Z"
 }
 ```
 
@@ -672,7 +676,7 @@ Responses:
 
 ### `POST /v1/telemetry/history/rollups`
 
-Returns bucketized aggregate telemetry over a time range. `startUtc`, `endUtc`, and `bucketMinutes` are authoritative; `includeEmptyBuckets` should be `true` for charting.
+Returns bucketized aggregate telemetry over a time range. `startUtc`, `endUtc`, and `bucketMinutes` are authoritative; `includeEmptyBuckets` should be `true` for charting. The range start is inclusive and the range end is exclusive. Fractional-second request timestamps are supported; returned bucket boundaries are aligned to the bucket interval using the request start time rounded to the same whole-second precision used by SQLite grouping.
 
 Request:
 

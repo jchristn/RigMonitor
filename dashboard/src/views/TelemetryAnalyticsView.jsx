@@ -36,6 +36,16 @@ const metricDescriptors = [
 
 const bucketOptions = [1, 15, 60, 360, 1440]
 const pageSizeOptions = [10, 25, 50, 100]
+const quickRangeSettings = {
+  hour: { bucketMinutes: 1, sampleCount: 60 },
+  day: { bucketMinutes: 15, sampleCount: 96 },
+  week: { bucketMinutes: 60, sampleCount: 144 },
+  month: { bucketMinutes: 360, sampleCount: 112 },
+}
+
+function quickRangeMilliseconds(range) {
+  return range.bucketMinutes * range.sampleCount * 60 * 1000
+}
 
 function dateInputValue(date) {
   const adjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
@@ -56,7 +66,7 @@ function parseDateInput(value) {
 }
 
 function initialStartInput() {
-  return dateInputValue(new Date(Date.now() - 60 * 60 * 1000))
+  return dateInputValue(new Date(Date.now() - quickRangeMilliseconds(quickRangeSettings.hour)))
 }
 
 function initialEndInput() {
@@ -194,17 +204,28 @@ function StateBox({ title, body }) {
   )
 }
 
-function RollupChart({ buckets, descriptor, label, emptyLabel }) {
+function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, sampleLabel, timeLabel }) {
+  const [hoveredPoint, setHoveredPoint] = useState(null)
   const width = 920
   const height = 260
-  const padLeft = 54
+  const padLeft = 64
   const padRight = 18
   const padTop = 18
   const padBottom = 40
   const plotWidth = width - padLeft - padRight
   const plotHeight = height - padTop - padBottom
   const values = buckets.map((bucket) => bucket[descriptor.field]).filter((value) => value != null)
+  const hasData = buckets.length > 0 && values.length > 0
   const maxValue = values.length > 0 ? Math.max(...values, 1) : 1
+  const yTickCount = hasData ? 5 : 2
+  const yTicks = Array.from({ length: yTickCount }, (_, index) => {
+    const ratio = yTickCount === 1 ? 0 : index / (yTickCount - 1)
+    const value = maxValue * (1 - ratio)
+    return {
+      value,
+      y: padTop + ratio * plotHeight,
+    }
+  })
   const points = buckets.map((bucket, index) => {
     const divisor = Math.max(1, buckets.length - 1)
     const value = bucket[descriptor.field] == null ? 0 : bucket[descriptor.field]
@@ -212,44 +233,91 @@ function RollupChart({ buckets, descriptor, label, emptyLabel }) {
     const y = padTop + plotHeight - (value / maxValue) * plotHeight
     return { x, y, value, bucket }
   })
-
-  if (buckets.length < 1 || values.length < 1) {
-    return (
-      <div className="chart-empty">
-        <p>{emptyLabel}</p>
-      </div>
-    )
-  }
-
+  const hoverZones = points.map((point, index) => {
+    const previousX = index === 0 ? padLeft : (points[index - 1].x + point.x) / 2
+    const nextX = index === points.length - 1 ? padLeft + plotWidth : (point.x + points[index + 1].x) / 2
+    return {
+      point,
+      x: previousX,
+      width: nextX - previousX,
+    }
+  })
   const polyline = points.map((point) => `${point.x},${point.y}`).join(' ')
   const area = `${padLeft},${padTop + plotHeight} ${polyline} ${padLeft + plotWidth},${padTop + plotHeight}`
   const firstBucket = buckets[0]
   const lastBucket = buckets[buckets.length - 1]
+  const tooltipWidth = 250
+  const tooltipHeight = 68
+  const tooltipX = hoveredPoint
+    ? (hoveredPoint.x + tooltipWidth + 14 > width - padRight ? hoveredPoint.x - tooltipWidth - 14 : hoveredPoint.x + 14)
+    : 0
+  const tooltipY = hoveredPoint
+    ? Math.min(Math.max(padTop + 6, hoveredPoint.y - 36), height - padBottom - tooltipHeight - 6)
+    : 0
 
   return (
     <div className="chart-scroll">
-      <svg aria-label={label} className="rollup-chart" role="img" viewBox={`0 0 ${width} ${height}`}>
+      <svg
+        aria-label={label}
+        className="rollup-chart"
+        onMouseLeave={() => setHoveredPoint(null)}
+        role="img"
+        viewBox={`0 0 ${width} ${height}`}
+      >
         <line className="chart-axis" x1={padLeft} x2={padLeft} y1={padTop} y2={padTop + plotHeight} />
         <line className="chart-axis" x1={padLeft} x2={padLeft + plotWidth} y1={padTop + plotHeight} y2={padTop + plotHeight} />
-        <text className="chart-axis-label" x={padLeft - 8} y={padTop + 5} textAnchor="end">
-          {formatMetric(maxValue, descriptor.type)}
-        </text>
-        <text className="chart-axis-label" x={padLeft - 8} y={padTop + plotHeight} textAnchor="end">
-          {formatMetric(0, descriptor.type)}
-        </text>
-        <polygon className="chart-area" points={area} />
-        <polyline className="chart-line" points={polyline} />
-        {points.map((point) => (
-          <circle className="chart-point" cx={point.x} cy={point.y} key={`${point.bucket.bucketStartUtc}-${point.x}`} r="3.5">
-            <title>{`${formatDateTime(point.bucket.bucketStartUtc)}: ${formatMetric(point.value, descriptor.type)}`}</title>
-          </circle>
+        {yTicks.map((tick) => (
+          <g key={`${tick.y}-${tick.value}`}>
+            <line className="chart-grid-line" x1={padLeft} x2={padLeft + plotWidth} y1={tick.y} y2={tick.y} />
+            <text className="chart-axis-label chart-y-axis-label" x={padLeft - 8} y={tick.y + 3} textAnchor="end">
+              {formatMetric(tick.value, descriptor.type)}
+            </text>
+          </g>
         ))}
-        <text className="chart-axis-label" x={padLeft} y={height - 12} textAnchor="start">
-          {formatDateTime(firstBucket.bucketStartUtc)}
-        </text>
-        <text className="chart-axis-label" x={padLeft + plotWidth} y={height - 12} textAnchor="end">
-          {formatDateTime(lastBucket.bucketEndUtc)}
-        </text>
+        {hasData ? (
+          <>
+            <polygon className="chart-area" points={area} />
+            <polyline className="chart-line" points={polyline} />
+            {points.map((point) => (
+              <circle className="chart-point" cx={point.x} cy={point.y} key={`${point.bucket.bucketStartUtc}-${point.x}`} r="3.5" />
+            ))}
+            {hoverZones.map((zone) => (
+              <rect
+                className="chart-hover-target"
+                height={plotHeight}
+                key={`${zone.point.bucket.bucketStartUtc}-${zone.x}`}
+                onMouseEnter={() => setHoveredPoint(zone.point)}
+                onMouseMove={() => setHoveredPoint(zone.point)}
+                width={zone.width}
+                x={zone.x}
+                y={padTop}
+              />
+            ))}
+            <text className="chart-axis-label chart-x-axis-label" x={padLeft} y={height - 12} textAnchor="start">
+              {formatDateTime(firstBucket.bucketStartUtc)}
+            </text>
+            <text className="chart-axis-label chart-x-axis-label" x={padLeft + plotWidth} y={height - 12} textAnchor="end">
+              {formatDateTime(lastBucket.bucketEndUtc)}
+            </text>
+          </>
+        ) : (
+          <text className="chart-empty-label" x={padLeft + plotWidth / 2} y={padTop + plotHeight / 2} textAnchor="middle">
+            {emptyLabel}
+          </text>
+        )}
+        {hoveredPoint ? (
+          <g className="chart-tooltip" pointerEvents="none">
+            <line className="chart-tooltip-line" x1={hoveredPoint.x} x2={hoveredPoint.x} y1={padTop} y2={padTop + plotHeight} />
+            <circle className="chart-active-point" cx={hoveredPoint.x} cy={hoveredPoint.y} r="5" />
+            <rect className="chart-tooltip-box" height={tooltipHeight} rx="6" width={tooltipWidth} x={tooltipX} y={tooltipY} />
+            <text className="chart-tooltip-text" x={tooltipX + 10} y={tooltipY + 16}>
+              <tspan className="chart-tooltip-title">{metricLabel}</tspan>
+              <tspan x={tooltipX + 10} dy="15">{formatMetric(hoveredPoint.value, descriptor.type)}</tspan>
+              <tspan x={tooltipX + 10} dy="15">{`${timeLabel}: ${formatDateTimeWithSeconds(hoveredPoint.bucket.bucketStartUtc)}`}</tspan>
+              <tspan x={tooltipX + 10} dy="15">{`${sampleLabel}: ${formatNumber(hoveredPoint.bucket.sampleCount || 0)}`}</tspan>
+            </text>
+          </g>
+        ) : null}
       </svg>
     </div>
   )
@@ -259,7 +327,7 @@ export function TelemetryAnalyticsView() {
   const { t } = useTranslation()
   const [startInput, setStartInput] = useState(initialStartInput)
   const [endInput, setEndInput] = useState(initialEndInput)
-  const [bucketMinutes, setBucketMinutes] = useState(15)
+  const [bucketMinutes, setBucketMinutes] = useState(quickRangeSettings.hour.bucketMinutes)
   const [metricKey, setMetricKey] = useState('cpu')
   const [filters, setFilters] = useState(emptyFilters)
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
@@ -268,9 +336,12 @@ export function TelemetryAnalyticsView() {
   const [rollupResult, setRollupResult] = useState(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [activeQuickRange, setActiveQuickRange] = useState('hour')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modalValue, setModalValue] = useState('')
+  const [modalTitle, setModalTitle] = useState('')
+  const [modalCloseLabel, setModalCloseLabel] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
 
@@ -348,22 +419,89 @@ export function TelemetryAnalyticsView() {
 
   function applyQuickRange(rangeKey) {
     const now = new Date()
-    const ranges = {
-      hour: { milliseconds: 60 * 60 * 1000, bucket: 1 },
-      day: { milliseconds: 24 * 60 * 60 * 1000, bucket: 15 },
-      week: { milliseconds: 7 * 24 * 60 * 60 * 1000, bucket: 60 },
-      month: { milliseconds: 30 * 24 * 60 * 60 * 1000, bucket: 360 },
-    }
-    const range = ranges[rangeKey] || ranges.hour
-    setStartInput(dateInputValue(new Date(now.getTime() - range.milliseconds)))
+    const range = quickRangeSettings[rangeKey] || quickRangeSettings.hour
+    setStartInput(dateInputValue(new Date(now.getTime() - quickRangeMilliseconds(range))))
     setEndInput(dateInputValue(now))
-    setBucketMinutes(range.bucket)
+    setBucketMinutes(range.bucketMinutes)
+    setActiveQuickRange(rangeKey)
     setPage(1)
   }
 
   async function openSample(record) {
     const detail = await getTelemetrySample(record.id)
     setModalValue(JSON.stringify(detail, null, 2))
+    setModalTitle(t('analytics.detailTitle'))
+    setModalCloseLabel(t('analytics.actions.closeDetails'))
+    setIsModalOpen(true)
+  }
+
+  function updateStartInput(value) {
+    setStartInput(value)
+    setActiveQuickRange('')
+  }
+
+  function updateEndInput(value) {
+    setEndInput(value)
+    setActiveQuickRange('')
+  }
+
+  function updateBucketMinutes(value) {
+    setBucketMinutes(value)
+    setActiveQuickRange('')
+  }
+
+  function openJsonModal() {
+    const searchFilter = buildSearchFilter(appliedFilters, startInput, endInput, page, pageSize)
+    const rollupRequest = buildRollupRequest(appliedFilters, startInput, endInput, bucketMinutes)
+    const payload = {
+      view: 'analytics',
+      generatedUtc: new Date().toISOString(),
+      controls: {
+        activeQuickRange,
+        startInput,
+        endInput,
+        bucketMinutes,
+        metricKey,
+        filters,
+        appliedFilters,
+        page,
+        pageSize,
+      },
+      requests: {
+        status: {
+          method: 'GET',
+          path: '/v1/telemetry/history/status',
+        },
+        search: {
+          method: 'POST',
+          path: '/v1/telemetry/history/search',
+          body: searchFilter,
+        },
+        rollup: {
+          method: 'POST',
+          path: '/v1/telemetry/history/rollups',
+          body: rollupRequest,
+        },
+      },
+      responses: {
+        status,
+        search: searchResult,
+        rollup: rollupResult,
+      },
+      derived: {
+        selectedMetric: descriptor,
+        bucketCount: buckets.length,
+        visibleRecordCount: records.length,
+        averageCpuUtilizationPercent: averageCpu,
+        averageMemoryUtilizationPercent: averageMemory,
+        averageGpuUtilizationPercent: averageGpu,
+        averageGpuTemperatureCelsius: averageGpuTemperature,
+      },
+    }
+
+    setModalValue(JSON.stringify(payload, null, 2))
+    setModalTitle(t('analytics.jsonTitle'))
+    setModalCloseLabel(t('analytics.actions.closeJson'))
     setIsModalOpen(true)
   }
 
@@ -400,6 +538,9 @@ export function TelemetryAnalyticsView() {
             <p>{t('analytics.subtitle')}</p>
           </div>
           <div className="toolbar-actions">
+            <button className="button-secondary" onClick={openJsonModal} type="button">
+              {t('analytics.actions.viewJson')}
+            </button>
             <button className="button-secondary" onClick={() => setRefreshNonce((value) => value + 1)} type="button">
               {t('analytics.actions.refresh')}
             </button>
@@ -426,7 +567,13 @@ export function TelemetryAnalyticsView() {
         <section className="surface analytics-controls">
           <div className="quick-range-row" aria-label={t('analytics.quickRangesLabel')}>
             {['hour', 'day', 'week', 'month'].map((rangeKey) => (
-              <button className="button-secondary" key={rangeKey} onClick={() => applyQuickRange(rangeKey)} type="button">
+              <button
+                aria-pressed={activeQuickRange === rangeKey}
+                className={activeQuickRange === rangeKey ? 'button-primary' : 'button-secondary'}
+                key={rangeKey}
+                onClick={() => applyQuickRange(rangeKey)}
+                type="button"
+              >
                 {t(`analytics.quickRanges.${rangeKey}`)}
               </button>
             ))}
@@ -435,15 +582,15 @@ export function TelemetryAnalyticsView() {
           <div className="filter-grid">
             <label>
               <span>{t('analytics.filters.start')}</span>
-              <input className="input" onChange={(event) => setStartInput(event.target.value)} type="datetime-local" value={startInput} />
+              <input className="input" onChange={(event) => updateStartInput(event.target.value)} type="datetime-local" value={startInput} />
             </label>
             <label>
               <span>{t('analytics.filters.end')}</span>
-              <input className="input" onChange={(event) => setEndInput(event.target.value)} type="datetime-local" value={endInput} />
+              <input className="input" onChange={(event) => updateEndInput(event.target.value)} type="datetime-local" value={endInput} />
             </label>
             <label>
               <span>{t('analytics.filters.bucket')}</span>
-              <select className="select" onChange={(event) => setBucketMinutes(Number(event.target.value))} value={bucketMinutes}>
+              <select className="select" onChange={(event) => updateBucketMinutes(Number(event.target.value))} value={bucketMinutes}>
                 {bucketOptions.map((value) => (
                   <option key={value} value={value}>
                     {t(`analytics.buckets.${value}`)}
@@ -547,6 +694,9 @@ export function TelemetryAnalyticsView() {
             descriptor={descriptor}
             emptyLabel={t('analytics.emptyChart')}
             label={t('analytics.chartAria', { metric: t(descriptor.labelKey) })}
+            metricLabel={t(descriptor.labelKey)}
+            sampleLabel={t('analytics.cards.samples')}
+            timeLabel={t('labels.collected')}
           />
         </section>
 
@@ -628,11 +778,11 @@ export function TelemetryAnalyticsView() {
 
       {isModalOpen ? (
         <JsonModal
-          closeLabel={t('analytics.actions.closeDetails')}
+          closeLabel={modalCloseLabel}
           copiedLabel={t('overview.copyJsonSuccess')}
           copyLabel={t('overview.copyJson')}
           onClose={() => setIsModalOpen(false)}
-          title={t('analytics.detailTitle')}
+          title={modalTitle}
           value={modalValue}
         />
       ) : null}

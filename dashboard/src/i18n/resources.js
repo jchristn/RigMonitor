@@ -80,12 +80,14 @@ export const resources = {
           month: 'Last month',
         },
         actions: {
+          viewJson: 'View JSON',
           refresh: 'Refresh',
           apply: 'Apply filters',
           reset: 'Reset filters',
           details: 'Details',
           previous: 'Previous',
           next: 'Next',
+          closeJson: 'Close JSON view',
           closeDetails: 'Close sample details',
         },
         status: {
@@ -178,6 +180,7 @@ export const resources = {
           actions: 'Actions',
         },
         emptyTable: 'No telemetry samples match the current filters.',
+        jsonTitle: 'Telemetry analytics JSON',
         detailTitle: 'Telemetry sample details',
       },
       collection: {
@@ -401,12 +404,14 @@ export const resources = {
           month: 'Ultimo mes',
         },
         actions: {
+          viewJson: 'Ver JSON',
           refresh: 'Actualizar',
           apply: 'Aplicar filtros',
           reset: 'Restablecer filtros',
           details: 'Detalle',
           previous: 'Anterior',
           next: 'Siguiente',
+          closeJson: 'Cerrar vista JSON',
           closeDetails: 'Cerrar detalle de muestra',
         },
         status: {
@@ -499,6 +504,7 @@ export const resources = {
           actions: 'Acciones',
         },
         emptyTable: 'Ninguna muestra coincide con los filtros actuales.',
+        jsonTitle: 'JSON de analitica de telemetria',
         detailTitle: 'Detalle de muestra de telemetria',
       },
       collection: {

@@ -151,13 +151,16 @@ namespace RigMonitor.Server.Services
         {
             try
             {
+                _Logger.Debug("Automated telemetry collection loop starting immediate collection for hostname " + _Settings.Hostname + ".");
                 await CollectOnceAsync(token).ConfigureAwait(false);
 
                 using (PeriodicTimer timer = new PeriodicTimer(TimeSpan.FromMilliseconds(_Settings.CollectionIntervalMs)))
                 {
                     while (!token.IsCancellationRequested)
                     {
-                        SetNextCollection(_TimeProvider.GetUtcNow().UtcDateTime.AddMilliseconds(_Settings.CollectionIntervalMs));
+                        DateTime nextCollectionUtc = _TimeProvider.GetUtcNow().UtcDateTime.AddMilliseconds(_Settings.CollectionIntervalMs);
+                        SetNextCollection(nextCollectionUtc);
+                        _Logger.Debug("Next automated telemetry collection scheduled for " + nextCollectionUtc.ToString("O") + ".");
                         if (!await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
                         {
                             break;
@@ -193,14 +196,17 @@ namespace RigMonitor.Server.Services
 
             try
             {
+                _Logger.Debug("Automated telemetry collection started at " + attemptUtc.ToString("O") + " for hostname " + _Settings.Hostname + ".");
                 TelemetrySnapshot snapshot = await _TelemetryService.GetSnapshotAsync(TelemetryRequestOptions.All(), token).ConfigureAwait(false);
-                await _Database.TelemetryHistory.CreateAsync(snapshot, token).ConfigureAwait(false);
+                TelemetrySampleDetail sample = await _Database.TelemetryHistory.CreateAsync(snapshot, token).ConfigureAwait(false);
 
                 lock (_StatusLock)
                 {
                     _LastSuccessUtc = attemptUtc;
                     _LastError = null;
                 }
+
+                _Logger.Debug("Automated telemetry collection persisted sample " + sample.Id + " collected at " + snapshot.CollectedUtc.ToString("O") + " for hostname " + _Settings.Hostname + ".");
             }
             catch (OperationCanceledException)
             {

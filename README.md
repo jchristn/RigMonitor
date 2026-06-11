@@ -37,7 +37,7 @@ Ubuntu bare-metal deployment is documented in [BARE_METAL_DEPLOYMENT.md](./BARE_
 - Structured per-section collection metadata with request state, support state, freshness, last success, and stable status codes
 - Local SQLite telemetry persistence with configurable collection cadence, hostname, and retention pruning
 - Search, enumeration, detail, delete, and bucketized roll-up APIs for historical telemetry
-- Same-port dashboard with manual refresh, auto-refresh, i18n, vLLM/Utilyze status/telemetry cards, and historical analytics at `/dashboard/analytics`
+- Same-port dashboard with manual refresh, auto-refresh, i18n, vLLM/Utilyze status/telemetry cards, historical analytics at `/dashboard/analytics`, and JSON inspection for the current view
 - OpenAPI document at `/openapi.json` and Swagger UI at `/openapi`
 
 ## Endpoints
@@ -119,6 +119,20 @@ The `freshness` object is evaluated from the last successful sample. This means 
 
 Run these commands from the repository root to run RigMonitor outside of Docker.
 
+One-command native run:
+
+```powershell
+.\go.bat
+```
+
+On Linux/macOS:
+
+```bash
+./go.sh
+```
+
+These scripts install dashboard dependencies, build the latest dashboard bundle, build `RigMonitor.Server`, create `data/logs`, and run the built server with the repository-root `rigmonitor.json`.
+
 1. Build the dashboard bundle:
 
    ```powershell
@@ -142,6 +156,7 @@ Run these commands from the repository root to run RigMonitor outside of Docker.
    ```
 
    The executable uses `rigmonitor.json` from the current directory by default, creating one if it does not exist. To use the repository-root settings file instead, pass `--settings ..\..\..\..\..\rigmonitor.json`.
+   The server output also includes `clean.bat` and `clean.sh`, which delete local runtime state under the output directory: `rigmonitor.json`, SQLite database files and sidecars, and log files/directories.
 
 4. Open:
 
@@ -172,10 +187,16 @@ Dashboard settings:
 - `Dashboard.Title`
 - `Dashboard.AutoRefreshIntervalMs`
 
+Logging settings:
+
+- `Logging.LogDirectory`: log file directory. Default is `data/logs`.
+- `Logging.LogFilename`: base log filename. Default is `rigmonitor.log`.
+- `Logging.MinimumSeverity`: minimum emitted severity. Default is `debug`.
+
 Persistence settings:
 
 - `Persistence.Enabled`: enables the background collector. Default is `true`.
-- `Persistence.CollectionIntervalMs`: full telemetry collection cadence. Default is `60000`.
+- `Persistence.CollectionIntervalMs`: full telemetry collection cadence. Default is `15000`.
 - `Persistence.RetentionDays`: number of days to keep persisted telemetry. Default is `30`.
 - `Persistence.PruneIntervalMinutes`: old-row pruning cadence. Default is `60`.
 - `Persistence.Hostname`: host label written to every persistence table. Null or empty values resolve to `localhost`.
@@ -191,7 +212,7 @@ Example:
 {
   "persistence": {
     "enabled": true,
-    "collectionIntervalMs": 60000,
+    "collectionIntervalMs": 15000,
     "retentionDays": 30,
     "pruneIntervalMinutes": 60,
     "hostname": "localhost",
@@ -208,7 +229,7 @@ Example:
 
 When persistence is enabled, RigMonitor collects the same full snapshot shape returned by `GET /v1/telemetry`, stores queryable scalar columns plus the full JSON payload, and prunes samples older than `Persistence.RetentionDays`. The default retention window is 30 days.
 
-History APIs support continuation-based enumeration, request-history style search, sample drill-down, deletion, and roll-ups such as "average telemetry from 05:00 to 06:00" with configurable bucket sizes. The dashboard analytics page at `/dashboard/analytics` uses those APIs to filter ranges, chart bucketized metrics, page through samples, and inspect the original captured snapshot.
+History APIs support continuation-based enumeration, request-history style search, sample drill-down, deletion, and roll-ups such as "average telemetry from 05:00 to 06:00" with configurable bucket sizes. The dashboard analytics page at `/dashboard/analytics` uses those APIs to filter ranges, highlight selected quick ranges, chart bucketized metrics, page through samples, inspect the original captured snapshot, and view/copy the JSON powering the current analytics view.
 
 ## NVIDIA GPU Telemetry
 
@@ -241,8 +262,9 @@ cd docker
 docker compose up --build
 ```
 
-This persists settings and logs under `docker/data/`.
-The same mount also persists `rigmonitor.telemetry.db`, `rigmonitor.telemetry.db-wal`, and `rigmonitor.telemetry.db-shm` when the default SQLite persistence path is used.
+This persists settings, logs, and the default SQLite telemetry database under `docker/data/`.
+The compose file mounts the entire `/app/data` directory so `rigmonitor.telemetry.db`, `rigmonitor.telemetry.db-wal`, and `rigmonitor.telemetry.db-shm` stay together. Do not change this to a file-level database mount; SQLite WAL deployments require the sidecar files to persist with the main database.
+If you configure `Persistence.Database.Filename` outside `/app/data`, add a volume for that directory too.
 
 ## GPU, Ollama, vLLM, And Utilyze Notes
 

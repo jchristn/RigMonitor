@@ -4,6 +4,7 @@ namespace Test.Automated
     using System.IO;
     using System.Threading;
     using System.Threading.Tasks;
+    using RigMonitor.Core.Enums;
     using RigMonitor.Server.Services;
 
     /// <summary>
@@ -27,6 +28,7 @@ namespace Test.Automated
                 Assert.True(File.Exists(settingsFile));
                 Assert.Equal("localhost", settings.Webserver.Hostname);
                 Assert.Equal("http://localhost:11434", settings.Telemetry.OllamaBaseUrl);
+                Assert.Equal(LogSeverityEnum.Debug, settings.Logging.MinimumSeverity);
             }
             finally
             {

@@ -25,6 +25,9 @@ namespace Test.Xunit
         [Fact]
         public void ShouldClampPersistenceSettingsAndDefaultHostname()
         {
+            PersistenceSettings defaults = new PersistenceSettings();
+            Assert.Equal(15000, defaults.CollectionIntervalMs);
+
             PersistenceSettings settings = new PersistenceSettings
             {
                 Hostname = "   ",
@@ -97,11 +100,15 @@ namespace Test.Xunit
                 string json = await File.ReadAllTextAsync(settingsFile, CancellationToken.None);
 
                 Assert.True(File.Exists(settingsFile));
+                Assert.Equal(LogSeverityEnum.Debug, settings.Logging.MinimumSeverity);
                 Assert.True(settings.Persistence.Enabled);
                 Assert.Equal("localhost", settings.Persistence.Hostname);
+                Assert.Equal(15000, settings.Persistence.CollectionIntervalMs);
                 Assert.Equal(30, settings.Persistence.RetentionDays);
                 Assert.Equal(Constants.DefaultTelemetryHistoryDatabaseFilename, settings.Persistence.Database.Filename);
                 Assert.Contains("\"persistence\"", json);
+                Assert.Contains("\"minimumSeverity\": \"debug\"", json);
+                Assert.Contains("\"collectionIntervalMs\": 15000", json);
                 Assert.Contains("\"retentionDays\": 30", json);
             }
             finally
@@ -256,6 +263,22 @@ namespace Test.Xunit
                 Assert.Equal(0L, trendRollup.Buckets[1].SampleCount);
                 Assert.Equal(1L, trendRollup.Buckets[2].SampleCount);
                 Assert.Equal(0L, trendRollup.Buckets[3].SampleCount);
+
+                TelemetryRollupResult fractionalRangeRollup = await database.TelemetryHistory.RollupAsync(
+                    new TelemetryRollupRequest
+                    {
+                        Hostname = "rig-a",
+                        StartUtc = bucketStartUtc.AddMilliseconds(123),
+                        EndUtc = bucketStartUtc.AddHours(1).AddMilliseconds(456),
+                        BucketMinutes = 15,
+                        IncludeEmptyBuckets = true
+                    },
+                    CancellationToken.None);
+
+                Assert.Equal(2L, fractionalRangeRollup.TotalSamples);
+                Assert.Equal(2, fractionalRangeRollup.Buckets.Count(bucket => bucket.SampleCount > 0L));
+                Assert.Equal(20D, fractionalRangeRollup.Buckets[0].AverageCpuUtilizationPercent);
+                Assert.Equal(40D, fractionalRangeRollup.Buckets[2].AverageCpuUtilizationPercent);
 
                 TelemetryRollupRequest clampedRequest = new TelemetryRollupRequest
                 {

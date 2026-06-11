@@ -15,5 +15,6 @@ WORKDIR /app
 COPY --from=server-build /out/ ./
 COPY --from=dashboard-build /src/dashboard/dist ./wwwroot
 RUN mkdir -p /app/data/logs
+VOLUME ["/app/data"]
 EXPOSE 9990
 ENTRYPOINT ["dotnet", "RigMonitor.Server.dll", "--settings", "/app/data/rigmonitor.json"]

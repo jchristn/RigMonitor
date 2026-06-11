@@ -25,13 +25,14 @@ namespace Test.Xunit
             string tempDirectory = CreateTempDirectory();
             string databaseFile = Path.Combine(tempDirectory, "history.db");
             string logDirectory = Path.Combine(tempDirectory, "logs");
+            string logFile = Path.Combine(logDirectory, "rigmonitor.log");
             DateTimeOffset now = new DateTimeOffset(2026, 6, 11, 12, 0, 0, TimeSpan.Zero);
 
             PersistenceSettings settings = new PersistenceSettings
             {
                 Enabled = true,
                 Hostname = "worker-host",
-                CollectionIntervalMs = 60000,
+                CollectionIntervalMs = 15000,
                 RetentionDays = 1,
                 PruneIntervalMinutes = 60,
                 Database = new DatabaseSettings
@@ -45,7 +46,9 @@ namespace Test.Xunit
             {
                 LogDirectory = logDirectory,
                 ConsoleLogging = false,
-                FileLogging = true
+                FileLogging = true,
+                IncludeDateInFilename = false,
+                MinimumSeverity = LogSeverityEnum.Debug
             });
             ManualTimeProvider timeProvider = new ManualTimeProvider(now);
             FakeTelemetryService telemetryService = new FakeTelemetryService(() => BuildSnapshot(now.UtcDateTime, 42D));
@@ -68,6 +71,15 @@ namespace Test.Xunit
                 Assert.Equal(42D, result.Data[0].CpuUtilizationPercent);
                 Assert.Null(await database.TelemetryHistory.ReadDetailAsync(expired.Id, CancellationToken.None));
                 Assert.NotNull(persistenceService.GetStatus().LastSuccessUtc);
+
+                string logContents = await WaitForLogContentsAsync(
+                    logFile,
+                    "Automated telemetry collection persisted sample",
+                    CancellationToken.None);
+
+                Assert.Contains("Automated telemetry collection loop starting immediate collection for hostname worker-host.", logContents);
+                Assert.Contains("Automated telemetry collection started at 2026-06-11T12:00:00.0000000Z for hostname worker-host.", logContents);
+                Assert.Contains("Automated telemetry collection persisted sample", logContents);
             }
             finally
             {
@@ -99,6 +111,35 @@ namespace Test.Xunit
             }
 
             throw new TimeoutException("Telemetry persistence worker did not collect and prune within the expected time.");
+        }
+
+        private static async Task<string> WaitForLogContentsAsync(string logFile, string expectedText, CancellationToken cancellationToken)
+        {
+            for (int i = 0; i < 50; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
+                {
+                    if (File.Exists(logFile))
+                    {
+                        string contents = await File.ReadAllTextAsync(logFile, cancellationToken).ConfigureAwait(false);
+                        if (contents.Contains(expectedText, StringComparison.Ordinal))
+                        {
+                            return contents;
+                        }
+                    }
+                }
+                catch (IOException)
+                {
+                }
+
+                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+            }
+
+            return File.Exists(logFile)
+                ? await File.ReadAllTextAsync(logFile, cancellationToken).ConfigureAwait(false)
+                : String.Empty;
         }
 
         private static TelemetrySnapshot BuildSnapshot(DateTime collectedUtc, double cpuPercent)

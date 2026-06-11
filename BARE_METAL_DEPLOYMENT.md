@@ -176,11 +176,12 @@ Edit `/etc/rigmonitor/rigmonitor.json` for production:
   "logging": {
     "logDirectory": "/var/log/rigmonitor",
     "fileLogging": true,
-    "consoleLogging": true
+    "consoleLogging": true,
+    "minimumSeverity": "debug"
   },
   "persistence": {
     "enabled": true,
-    "collectionIntervalMs": 60000,
+    "collectionIntervalMs": 15000,
     "retentionDays": 30,
     "pruneIntervalMinutes": 60,
     "hostname": "localhost",
@@ -251,6 +252,30 @@ View logs:
 ```bash
 journalctl -u rigmonitor.service -f
 tail -f /var/log/rigmonitor/rigmonitor.log*
+```
+
+## Runtime State Reset
+
+The published app includes `clean.sh`, but it only cleans runtime files located under the directory where the script lives. The production layout in this guide stores configuration, logs, and database state outside `/opt/rigmonitor`, so use explicit commands when you need a destructive reset.
+
+Stop RigMonitor first:
+
+```bash
+sudo systemctl stop rigmonitor.service
+```
+
+Remove generated configuration, logs, and SQLite history, including WAL/SHM sidecars:
+
+```bash
+sudo rm -f /etc/rigmonitor/rigmonitor.json
+sudo rm -f /var/lib/rigmonitor/rigmonitor.telemetry.db*
+sudo rm -rf /var/log/rigmonitor/*
+```
+
+Reinstall or recreate `/etc/rigmonitor/rigmonitor.json`, then restart the service:
+
+```bash
+sudo systemctl start rigmonitor.service
 ```
 
 ## Firewall

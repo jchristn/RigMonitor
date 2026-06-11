@@ -7,6 +7,10 @@ services:
     ports:
       - "9990:9990"
     volumes:
-      # Persists settings, logs, SQLite database, WAL, and SHM files.
-      - ./data:/app/data
+      # Persist the entire runtime data directory. SQLite WAL mode writes the
+      # main database, -wal, and -shm files side-by-side; do not mount only the
+      # .db file or telemetry history can be lost/corrupted across restarts.
+      - type: bind
+        source: ./data
+        target: /app/data
     restart: unless-stopped

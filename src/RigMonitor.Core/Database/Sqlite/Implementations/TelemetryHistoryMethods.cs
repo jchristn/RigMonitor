@@ -237,8 +237,9 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
 
             DataTable result = await _Driver.ExecuteQueryAsync(sql, token, parameters.ToArray()).ConfigureAwait(false);
             Dictionary<DateTime, TelemetryRollupBucket> bucketMap = BucketsFromTable(result, request.BucketMinutes);
+            DateTime alignedStartUtc = DateTimeOffset.FromUnixTimeSeconds(startUnix).UtcDateTime;
             List<TelemetryRollupBucket> buckets = request.IncludeEmptyBuckets
-                ? FillBuckets(startUtc, endUtc, request.BucketMinutes, bucketMap)
+                ? FillBuckets(alignedStartUtc, endUtc, request.BucketMinutes, bucketMap)
                 : new List<TelemetryRollupBucket>(bucketMap.Values);
 
             long totalSamples = 0L;

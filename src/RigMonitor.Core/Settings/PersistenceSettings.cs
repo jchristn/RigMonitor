@@ -29,7 +29,7 @@ namespace RigMonitor.Core.Settings
         }
 
         /// <summary>
-        /// Background collection interval in milliseconds. Minimum 1000, maximum 86400000. Default is 60000.
+        /// Background collection interval in milliseconds. Minimum 1000, maximum 86400000. Default is 15000.
         /// </summary>
         public int CollectionIntervalMs
         {
@@ -89,7 +89,7 @@ namespace RigMonitor.Core.Settings
         }
 
         private string _Hostname = "localhost";
-        private int _CollectionIntervalMs = 60000;
+        private int _CollectionIntervalMs = 15000;
         private int _RetentionDays = 30;
         private int _PruneIntervalMinutes = 60;
         private DatabaseSettings _Database = new DatabaseSettings();

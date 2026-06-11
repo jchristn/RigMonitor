@@ -20,7 +20,7 @@ namespace RigMonitor.Core.Models
         /// <summary>
         /// Configured collection interval.
         /// </summary>
-        public int CollectionIntervalMs { get; set; } = 60000;
+        public int CollectionIntervalMs { get; set; } = 15000;
 
         /// <summary>
         /// Configured retention in days.
