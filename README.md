@@ -165,7 +165,7 @@ These scripts install dashboard dependencies, build the latest dashboard bundle,
 
 ## Settings
 
-The default settings file is `rigmonitor.json`. The daemon creates it automatically when missing.
+The default settings file is `rigmonitor.json`. The daemon creates it automatically when missing and rewrites it after loading so existing files capture newly added default properties while preserving configured values.
 
 Relevant telemetry settings:
 

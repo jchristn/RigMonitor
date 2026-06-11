@@ -144,8 +144,10 @@ Install the configuration file:
 ```bash
 sudo cp rigmonitor.json /etc/rigmonitor/rigmonitor.json
 sudo chown root:rigmonitor /etc/rigmonitor/rigmonitor.json
-sudo chmod 640 /etc/rigmonitor/rigmonitor.json
+sudo chmod 660 /etc/rigmonitor/rigmonitor.json
 ```
+
+RigMonitor rewrites the settings file after loading it so newly added default properties are captured in existing deployments. Keep `/etc/rigmonitor/rigmonitor.json` writable by the `rigmonitor` group.
 
 Create the log directory:
 
@@ -341,7 +343,7 @@ sudo systemctl start rigmonitor.service
 sudo systemctl status rigmonitor.service --no-pager
 ```
 
-If configuration schema changes, merge the new `rigmonitor.json` defaults into `/etc/rigmonitor/rigmonitor.json` before starting the service.
+When the configuration schema changes, RigMonitor rewrites `/etc/rigmonitor/rigmonitor.json` at startup with any newly introduced default properties while preserving configured values.
 
 ## Troubleshooting
 

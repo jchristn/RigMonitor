@@ -118,6 +118,56 @@ namespace Test.Xunit
         }
 
         /// <summary>
+        /// Verify existing settings files are rewritten with newly introduced default properties.
+        /// </summary>
+        [Fact]
+        public async Task ShouldRewriteExistingSettingsFileWithMissingDefaults()
+        {
+            string tempDirectory = CreateTempDirectory();
+            string settingsFile = Path.Combine(tempDirectory, "rigmonitor.json");
+            string oldSettingsJson = @"{
+  ""webserver"": {
+    ""hostname"": ""0.0.0.0"",
+    ""port"": 9995,
+    ""ssl"": false
+  },
+  ""telemetry"": {
+    ""ollamaBaseUrl"": ""http://legacy-host:11434""
+  },
+  ""logging"": {
+    ""logDirectory"": ""custom/logs"",
+    ""minimumSeverity"": ""info""
+  }
+}";
+
+            try
+            {
+                await File.WriteAllTextAsync(settingsFile, oldSettingsJson, CancellationToken.None);
+
+                RigMonitorSettings settings = await SettingsManager.LoadAsync(settingsFile, CancellationToken.None);
+                string rewrittenJson = await File.ReadAllTextAsync(settingsFile, CancellationToken.None);
+
+                Assert.Equal("0.0.0.0", settings.Webserver.Hostname);
+                Assert.Equal(9995, settings.Webserver.Port);
+                Assert.Equal("http://legacy-host:11434", settings.Telemetry.OllamaBaseUrl);
+                Assert.Equal("custom/logs", settings.Logging.LogDirectory);
+                Assert.Equal(LogSeverityEnum.Info, settings.Logging.MinimumSeverity);
+                Assert.True(settings.Persistence.Enabled);
+                Assert.Equal("localhost", settings.Persistence.Hostname);
+                Assert.Equal(15000, settings.Persistence.CollectionIntervalMs);
+                Assert.Equal(30, settings.Persistence.RetentionDays);
+                Assert.Contains("\"persistence\"", rewrittenJson);
+                Assert.Contains("\"collectionIntervalMs\": 15000", rewrittenJson);
+                Assert.Contains("\"retentionDays\": 30", rewrittenJson);
+                Assert.Contains("\"minimumSeverity\": \"info\"", rewrittenJson);
+            }
+            finally
+            {
+                DeleteDirectory(tempDirectory);
+            }
+        }
+
+        /// <summary>
         /// Verify SQLite initialization, persistence, search, roll-up, and retention pruning.
         /// </summary>
         [Fact]

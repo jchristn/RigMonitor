@@ -11,6 +11,7 @@
 - Added optional Utilyze sidecar telemetry support for GPU SOL, bandwidth, and attainable ceiling metrics
 - Added dashboard Utilyze badges and telemetry card
 - Added debug as the default minimum logging severity for generated settings
+- Added settings file normalization on startup so existing `rigmonitor.json` files receive newly introduced default properties
 - Added debug log messages for automated background telemetry collection start, scheduling, and persisted samples
 - Added configurable telemetry persistence using SQLite with provider-neutral database interfaces
 - Added PrettyId K-sortable telemetry sample IDs with prefixed IDs capped at 32 characters

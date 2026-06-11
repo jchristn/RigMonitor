@@ -44,6 +44,12 @@ namespace RigMonitor.Server.Services
                 throw new InvalidDataException("Unable to deserialize settings file '" + fullPath + "'.");
             }
 
+            string normalizedJson = RigMonitorJsonSerializer.Serialize(settings, true);
+            if (!String.Equals(fileContents, normalizedJson, StringComparison.Ordinal))
+            {
+                await File.WriteAllTextAsync(fullPath, normalizedJson, cancellationToken).ConfigureAwait(false);
+            }
+
             return settings;
         }
     }
