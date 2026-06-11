@@ -279,7 +279,7 @@ function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, samp
             <polygon className="chart-area" points={area} />
             <polyline className="chart-line" points={polyline} />
             {points.map((point) => (
-              <circle className="chart-point" cx={point.x} cy={point.y} key={`${point.bucket.bucketStartUtc}-${point.x}`} r="3.5" />
+              <circle className="chart-point" cx={point.x} cy={point.y} key={`${point.bucket.bucketStartUtc}-${point.x}`} r="1.4" />
             ))}
             {hoverZones.map((zone) => (
               <rect
@@ -308,7 +308,7 @@ function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, samp
         {hoveredPoint ? (
           <g className="chart-tooltip" pointerEvents="none">
             <line className="chart-tooltip-line" x1={hoveredPoint.x} x2={hoveredPoint.x} y1={padTop} y2={padTop + plotHeight} />
-            <circle className="chart-active-point" cx={hoveredPoint.x} cy={hoveredPoint.y} r="5" />
+            <circle className="chart-active-point" cx={hoveredPoint.x} cy={hoveredPoint.y} r="2.25" />
             <rect className="chart-tooltip-box" height={tooltipHeight} rx="6" width={tooltipWidth} x={tooltipX} y={tooltipY} />
             <text className="chart-tooltip-text" x={tooltipX + 10} y={tooltipY + 16}>
               <tspan className="chart-tooltip-title">{metricLabel}</tspan>

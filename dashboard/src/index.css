@@ -334,7 +334,7 @@ a {
 .chart-point {
   fill: var(--card-bg);
   stroke: var(--primary-color);
-  stroke-width: 2.25;
+  stroke-width: 1.1;
 }
 
 .chart-hover-target {
@@ -346,7 +346,7 @@ a {
 .chart-active-point {
   fill: var(--primary-color);
   stroke: var(--card-bg);
-  stroke-width: 2;
+  stroke-width: 1.25;
 }
 
 .chart-tooltip-line {
