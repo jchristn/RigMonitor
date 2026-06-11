@@ -301,7 +301,7 @@ function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, samp
   const { t } = useTranslation()
   const [hoveredPoint, setHoveredPoint] = useState(null)
   const width = 920
-  const height = 585
+  const height = 292.5
   const padLeft = 64
   const padRight = 18
   const padTop = 18
