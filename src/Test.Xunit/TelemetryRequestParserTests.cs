@@ -93,6 +93,111 @@ namespace Test.Xunit
         }
 
         /// <summary>
+        /// Verify null, empty, and whitespace inputs fall back to including every section.
+        /// </summary>
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void ShouldIncludeAllSectionsForMissingInput(string? rawWithQuery)
+        {
+            TelemetryRequestOptions options = TelemetryRequestParser.Parse(rawWithQuery);
+
+            Assert.True(options.IncludeSystem);
+            Assert.True(options.IncludeCpu);
+            Assert.True(options.IncludeMemory);
+            Assert.True(options.IncludeNetwork);
+            Assert.True(options.IncludeDisk);
+            Assert.True(options.IncludeGpu);
+            Assert.True(options.IncludeOllama);
+            Assert.True(options.IncludeVllm);
+            Assert.True(options.IncludeUtilyze);
+        }
+
+        /// <summary>
+        /// Verify a path with an empty or trailing query string includes every section.
+        /// </summary>
+        [Theory]
+        [InlineData("/v1/telemetry?")]
+        [InlineData("/v1/telemetry?&&")]
+        public void ShouldIncludeAllSectionsForEmptyQuery(string rawWithQuery)
+        {
+            TelemetryRequestOptions options = TelemetryRequestParser.Parse(rawWithQuery);
+
+            Assert.True(options.IncludeSystem);
+            Assert.True(options.IncludeGpu);
+            Assert.True(options.IncludeUtilyze);
+        }
+
+        /// <summary>
+        /// Verify a query containing only unrecognized selectors falls back to including every section.
+        /// </summary>
+        [Fact]
+        public void ShouldIncludeAllSectionsWhenNoRecognizedSelectorsPresent()
+        {
+            TelemetryRequestOptions options = TelemetryRequestParser.Parse("/v1/telemetry?foo&bar=false&baz=true");
+
+            Assert.True(options.IncludeSystem);
+            Assert.True(options.IncludeCpu);
+            Assert.True(options.IncludeGpu);
+            Assert.True(options.IncludeUtilyze);
+        }
+
+        /// <summary>
+        /// Verify unrecognized selectors are ignored while recognized ones still take effect.
+        /// </summary>
+        [Fact]
+        public void ShouldIgnoreUnrecognizedSelectorsAlongsideRecognizedOnes()
+        {
+            TelemetryRequestOptions options = TelemetryRequestParser.Parse("/v1/telemetry?cpu&unknown&disk=false");
+
+            Assert.False(options.IncludeSystem);
+            Assert.True(options.IncludeCpu);
+            Assert.False(options.IncludeDisk);
+            Assert.False(options.IncludeGpu);
+        }
+
+        /// <summary>
+        /// Verify a recognized selector with an empty value is treated as enabled.
+        /// </summary>
+        [Fact]
+        public void ShouldTreatEmptySelectorValueAsEnabled()
+        {
+            TelemetryRequestOptions options = TelemetryRequestParser.Parse("/v1/telemetry?gpu=");
+
+            Assert.True(options.IncludeGpu);
+            Assert.False(options.IncludeCpu);
+        }
+
+        /// <summary>
+        /// Verify selector keys and the false value are matched case-insensitively.
+        /// </summary>
+        [Fact]
+        public void ShouldMatchSelectorsCaseInsensitively()
+        {
+            TelemetryRequestOptions options = TelemetryRequestParser.Parse("/v1/telemetry?CPU&GPU=FALSE");
+
+            Assert.True(options.IncludeCpu);
+            Assert.False(options.IncludeGpu);
+            Assert.False(options.IncludeMemory);
+        }
+
+        /// <summary>
+        /// Verify only the literal token "false" disables a section; other values enable it.
+        /// </summary>
+        [Theory]
+        [InlineData("/v1/telemetry?gpu=true", true)]
+        [InlineData("/v1/telemetry?gpu=0", true)]
+        [InlineData("/v1/telemetry?gpu=no", true)]
+        [InlineData("/v1/telemetry?gpu=false", false)]
+        public void ShouldOnlyDisableSectionForFalseToken(string rawWithQuery, bool expectedIncludeGpu)
+        {
+            TelemetryRequestOptions options = TelemetryRequestParser.Parse(rawWithQuery);
+
+            Assert.Equal(expectedIncludeGpu, options.IncludeGpu);
+        }
+
+        /// <summary>
         /// Verify that cancellation followed by repeated stop calls exits cleanly.
         /// </summary>
         [Fact]
