@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { JsonModal } from '../components/JsonModal'
+import { RefreshButton } from '../components/RefreshButton'
 import { SectionCard } from '../components/SectionCard'
 import { StatCard } from '../components/StatCard'
 import { useTelemetry } from '../hooks/useTelemetry'
@@ -225,9 +226,7 @@ export function HomeView() {
             <button className="button-secondary" type="button" onClick={openJsonModal}>
               {t('overview.viewJson')}
             </button>
-            <button className="button-primary" type="button" onClick={() => void refresh()}>
-              {t('overview.refresh')}
-            </button>
+            <RefreshButton label={t('overview.refresh')} onClick={() => void refresh()} variant="button-primary" />
             <label className="toggle">
               <span>{t('overview.refreshInterval')}</span>
               <select

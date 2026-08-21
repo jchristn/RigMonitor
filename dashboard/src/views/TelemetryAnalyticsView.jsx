@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { JsonModal } from '../components/JsonModal'
+import { RefreshButton } from '../components/RefreshButton'
 import { StatCard } from '../components/StatCard'
 import {
   formatBytes,
@@ -36,6 +37,13 @@ const metricDescriptors = [
 
 const bucketOptions = [1, 15, 60, 360, 1440]
 const pageSizeOptions = [10, 25, 50, 100]
+const refreshIntervals = [
+  { value: 5000, label: '5s' },
+  { value: 10000, label: '10s' },
+  { value: 30000, label: '30s' },
+  { value: 60000, label: '60s' },
+  { value: 300000, label: '5m' },
+]
 const quickRangeSettings = {
   hour: { bucketMinutes: 1, sampleCount: 60 },
   day: { bucketMinutes: 15, sampleCount: 96 },
@@ -442,6 +450,18 @@ export function TelemetryAnalyticsView() {
   const [modalCloseLabel, setModalCloseLabel] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [intervalMs, setIntervalMs] = useState(30000)
+  const startInputRef = useRef(startInput)
+  const endInputRef = useRef(endInput)
+
+  useEffect(() => {
+    startInputRef.current = startInput
+  }, [startInput])
+
+  useEffect(() => {
+    endInputRef.current = endInput
+  }, [endInput])
 
   const descriptor = useMemo(
     () => metricDescriptors.find((item) => item.key === metricKey) || metricDescriptors[0],
@@ -495,6 +515,38 @@ export function TelemetryAnalyticsView() {
       cancelled = true
     }
   }, [appliedFilters, bucketMinutes, endInput, page, pageSize, refreshNonce, startInput])
+
+  function slideWindowToNow() {
+    const now = new Date()
+    const start = new Date(startInputRef.current)
+    const end = new Date(endInputRef.current)
+    let durationMs = end.getTime() - start.getTime()
+    if (!Number.isFinite(durationMs) || durationMs <= 0) {
+      durationMs = quickRangeMilliseconds(quickRangeSettings.hour)
+    }
+
+    setStartInput(dateInputValue(new Date(now.getTime() - durationMs)))
+    setEndInput(dateInputValue(now))
+  }
+
+  function handleRefresh() {
+    slideWindowToNow()
+    setRefreshNonce((value) => value + 1)
+  }
+
+  useEffect(() => {
+    if (!autoRefresh) {
+      return undefined
+    }
+
+    const timerId = window.setInterval(() => {
+      handleRefresh()
+    }, intervalMs)
+
+    return () => window.clearInterval(timerId)
+    // handleRefresh reads the latest range from refs, so it is safe to omit here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh, intervalMs])
 
   function updateFilter(name, value) {
     setFilters((current) => ({
@@ -639,9 +691,30 @@ export function TelemetryAnalyticsView() {
             <button className="button-secondary" onClick={openJsonModal} type="button">
               {t('analytics.actions.viewJson')}
             </button>
-            <button className="button-secondary" onClick={() => setRefreshNonce((value) => value + 1)} type="button">
-              {t('analytics.actions.refresh')}
-            </button>
+            <RefreshButton label={t('analytics.actions.refresh')} onClick={handleRefresh} />
+            <label className="toggle">
+              <span>{t('analytics.refreshInterval')}</span>
+              <select
+                className="select"
+                disabled={!autoRefresh}
+                value={intervalMs}
+                onChange={(event) => setIntervalMs(Number(event.target.value))}
+              >
+                {refreshIntervals.map((interval) => (
+                  <option key={interval.value} value={interval.value}>
+                    {interval.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="toggle">
+              <input
+                checked={autoRefresh}
+                onChange={(event) => setAutoRefresh(event.target.checked)}
+                type="checkbox"
+              />
+              <span>{t('analytics.autoRefresh')}</span>
+            </label>
             <span className={`pill ${statusTone()}`.trim()}>
               {statusLabel()}
             </span>

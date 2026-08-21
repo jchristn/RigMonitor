@@ -64,6 +64,8 @@ export const resources = {
       analytics: {
         title: 'Telemetry analytics',
         subtitle: 'Historical telemetry with range filters, bucketed roll-ups, searchable samples, and full snapshot drill-down.',
+        autoRefresh: 'Auto-refresh',
+        refreshInterval: 'Interval',
         loadingTitle: 'Loading telemetry history',
         loadingBody: 'Fetching persisted samples and roll-up buckets.',
         errorTitle: 'Telemetry history unavailable',
@@ -406,6 +408,8 @@ export const resources = {
       analytics: {
         title: 'Analitica de telemetria',
         subtitle: 'Telemetria historica con filtros de rango, agregados por cubo, busqueda de muestras y detalle completo.',
+        autoRefresh: 'Autoactualizar',
+        refreshInterval: 'Intervalo',
         loadingTitle: 'Cargando historial',
         loadingBody: 'Solicitando muestras persistidas y cubos agregados.',
         errorTitle: 'Historial no disponible',
