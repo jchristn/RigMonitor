@@ -5,6 +5,7 @@ export default {
     subtitle: '跨平台硬件遙測，透過單一 RigMonitor 守護程序可選擇顯示 GPU、Ollama、vLLM 同 Utilyze 嘅資訊。',
     navigation: '主要導覽',
     github: 'GitHub 儲存庫',
+    discord: 'Discord 伺服器',
     themeLight: '切換到淺色主題',
     themeDark: '切換到深色主題',
   },

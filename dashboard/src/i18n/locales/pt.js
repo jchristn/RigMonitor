@@ -5,6 +5,7 @@ export default {
     subtitle: 'Telemetria de hardware multiplataforma com visibilidade opcional de GPU, Ollama, vLLM e Utilyze a partir de um único daemon do RigMonitor.',
     navigation: 'Navegação principal',
     github: 'Repositório do GitHub',
+    discord: 'Servidor do Discord',
     themeLight: 'Mudar para o tema claro',
     themeDark: 'Mudar para o tema escuro',
   },

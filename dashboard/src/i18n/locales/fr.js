@@ -5,6 +5,7 @@ export default {
     subtitle: 'Télémétrie matérielle multiplateforme avec visibilité optionnelle sur GPU, Ollama, vLLM et Utilyze depuis un seul démon RigMonitor.',
     navigation: 'Navigation principale',
     github: 'Dépôt GitHub',
+    discord: 'Serveur Discord',
     themeLight: 'Passer au thème clair',
     themeDark: 'Passer au thème sombre',
   },

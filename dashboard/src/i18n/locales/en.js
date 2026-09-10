@@ -5,6 +5,7 @@ export default {
     subtitle: 'Cross-platform hardware telemetry with optional GPU, Ollama, vLLM, and Utilyze visibility from a single RigMonitor daemon.',
     navigation: 'Primary navigation',
     github: 'GitHub repository',
+    discord: 'Discord server',
     themeLight: 'Switch to light theme',
     themeDark: 'Switch to dark theme',
   },

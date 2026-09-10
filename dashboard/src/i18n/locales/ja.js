@@ -5,6 +5,7 @@ export default {
     subtitle: '単一の RigMonitor デーモンから、クロスプラットフォームのハードウェアテレメトリと、オプションで GPU、Ollama、vLLM、Utilyze の状況を可視化します。',
     navigation: 'メインナビゲーション',
     github: 'GitHub リポジトリ',
+    discord: 'Discord サーバー',
     themeLight: 'ライトテーマに切り替え',
     themeDark: 'ダークテーマに切り替え',
   },

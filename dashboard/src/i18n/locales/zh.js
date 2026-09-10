@@ -5,6 +5,7 @@ export default {
     subtitle: '跨平台硬件遥测，通过单个 RigMonitor 守护进程可选查看 GPU、Ollama、vLLM 和 Utilyze。',
     navigation: '主导航',
     github: 'GitHub 代码仓库',
+    discord: 'Discord 服务器',
     themeLight: '切换到浅色主题',
     themeDark: '切换到深色主题',
   },
