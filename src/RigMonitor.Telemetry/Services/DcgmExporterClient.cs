@@ -4,6 +4,7 @@ namespace RigMonitor.Telemetry.Services
     using System.Net.Http;
     using System.Threading;
     using System.Threading.Tasks;
+    using RigMonitor.Core.Observability;
     using RigMonitor.Core.Services.Interfaces;
     using RigMonitor.Core.Settings;
 
@@ -37,30 +38,42 @@ namespace RigMonitor.Telemetry.Services
         /// <returns>Metrics text on success, or null when unavailable.</returns>
         public async Task<string?> TryGetMetricsAsync(CancellationToken cancellationToken)
         {
-            try
+            Uri.TryCreate(_MetricsUrl, UriKind.Absolute, out Uri? target);
+            using (IntegrationCall call = IntegrationCall.Start(RigMonitorTelemetryNames.ServiceDcgm, "metrics", target))
             {
-                using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, _MetricsUrl))
-                using (HttpResponseMessage response = await _HttpClient.SendAsync(request, cancellationToken).ConfigureAwait(false))
+                try
                 {
-                    if (!response.IsSuccessStatusCode)
+                    using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, _MetricsUrl))
+                    using (HttpResponseMessage response = await _HttpClient.SendAsync(request, cancellationToken).ConfigureAwait(false))
                     {
-                        return null;
-                    }
+                        call.SetHttpStatusCode((int)response.StatusCode);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            call.Fail(RigMonitorTelemetryNames.OutcomeHttpError, "DCGM exporter returned HTTP " + (int)response.StatusCode + ".");
+                            return null;
+                        }
 
-                    return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                        string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                        call.SetTag("http.response.body.size", body.Length);
+                        call.Succeed();
+                        return body;
+                    }
                 }
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                return null;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                return null;
+                catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+                {
+                    call.Fail(exception, cancellationToken);
+                    return null;
+                }
+                catch (OperationCanceledException exception)
+                {
+                    call.Fail(exception, cancellationToken);
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    call.Fail(exception, cancellationToken);
+                    return null;
+                }
             }
         }
     }

@@ -7,6 +7,7 @@ namespace RigMonitor.Telemetry.Services
     using System.Threading;
     using System.Threading.Tasks;
     using RigMonitor.Core.Models;
+    using RigMonitor.Core.Observability;
     using RigMonitor.Core.Services.Interfaces;
     using RigMonitor.Core.Settings;
     using RigMonitor.Telemetry.Models.Ollama;
@@ -18,6 +19,7 @@ namespace RigMonitor.Telemetry.Services
     {
         private readonly HttpClient _HttpClient;
         private readonly string _BaseUrl;
+        private readonly Uri _BaseUri;
 
         /// <summary>
         /// Instantiate the client.
@@ -28,9 +30,10 @@ namespace RigMonitor.Telemetry.Services
             if (settings == null) throw new ArgumentNullException(nameof(settings));
 
             _BaseUrl = settings.OllamaBaseUrl.TrimEnd('/');
+            _BaseUri = new Uri(_BaseUrl, UriKind.Absolute);
             _HttpClient = new HttpClient
             {
-                BaseAddress = new Uri(_BaseUrl, UriKind.Absolute),
+                BaseAddress = _BaseUri,
                 Timeout = TimeSpan.FromMilliseconds(settings.RequestTimeoutMs)
             };
         }
@@ -42,24 +45,38 @@ namespace RigMonitor.Telemetry.Services
         /// <returns>True when reachable.</returns>
         public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken)
         {
-            try
+            using (IntegrationCall call = IntegrationCall.Start(RigMonitorTelemetryNames.ServiceOllama, "probe", _BaseUri))
             {
-                using (HttpResponseMessage response = await _HttpClient.GetAsync("/api/version", cancellationToken).ConfigureAwait(false))
+                try
                 {
-                    return response.IsSuccessStatusCode;
+                    using (HttpResponseMessage response = await _HttpClient.GetAsync("/api/version", cancellationToken).ConfigureAwait(false))
+                    {
+                        call.SetHttpStatusCode((int)response.StatusCode);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            call.Fail(RigMonitorTelemetryNames.OutcomeHttpError, "Ollama returned HTTP " + (int)response.StatusCode + ".");
+                            return false;
+                        }
+
+                        call.Succeed();
+                        return true;
+                    }
                 }
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                return false;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                return false;
+                catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+                {
+                    call.Fail(exception, cancellationToken);
+                    return false;
+                }
+                catch (OperationCanceledException exception)
+                {
+                    call.Fail(exception, cancellationToken);
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    call.Fail(exception, cancellationToken);
+                    return false;
+                }
             }
         }
 
@@ -72,9 +89,9 @@ namespace RigMonitor.Telemetry.Services
         {
             try
             {
-                Task<OllamaVersionResponse?> versionTask = _HttpClient.GetFromJsonAsync<OllamaVersionResponse>("/api/version", cancellationToken);
-                Task<OllamaTagsResponse?> tagsTask = _HttpClient.GetFromJsonAsync<OllamaTagsResponse>("/api/tags", cancellationToken);
-                Task<OllamaRunningResponse?> runningTask = _HttpClient.GetFromJsonAsync<OllamaRunningResponse>("/api/ps", cancellationToken);
+                Task<OllamaVersionResponse?> versionTask = GetJsonAsync<OllamaVersionResponse>("/api/version", "version", cancellationToken);
+                Task<OllamaTagsResponse?> tagsTask = GetJsonAsync<OllamaTagsResponse>("/api/tags", "tags", cancellationToken);
+                Task<OllamaRunningResponse?> runningTask = GetJsonAsync<OllamaRunningResponse>("/api/ps", "ps", cancellationToken);
 
                 await Task.WhenAll(versionTask, tagsTask, runningTask).ConfigureAwait(false);
 
@@ -107,6 +124,34 @@ namespace RigMonitor.Telemetry.Services
             catch (Exception)
             {
                 return null;
+            }
+        }
+
+        private async Task<T?> GetJsonAsync<T>(string path, string operation, CancellationToken cancellationToken)
+        {
+            using (IntegrationCall call = IntegrationCall.Start(RigMonitorTelemetryNames.ServiceOllama, operation, _BaseUri))
+            {
+                try
+                {
+                    using (HttpResponseMessage response = await _HttpClient.GetAsync(path, cancellationToken).ConfigureAwait(false))
+                    {
+                        call.SetHttpStatusCode((int)response.StatusCode);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            call.Fail(RigMonitorTelemetryNames.OutcomeHttpError, "Ollama returned HTTP " + (int)response.StatusCode + ".");
+                        }
+
+                        response.EnsureSuccessStatusCode();
+                        T? result = await response.Content.ReadFromJsonAsync<T>(cancellationToken).ConfigureAwait(false);
+                        call.Succeed();
+                        return result;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    call.Fail(exception, cancellationToken);
+                    throw;
+                }
             }
         }
 

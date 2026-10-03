@@ -2,7 +2,7 @@
 
 <img src="assets/icon.png" alt="RigMonitor icon" width="192" height="192" />
 
-Version `0.1.0`
+Version `0.2.0-alpha`
 
 Note: RigMonitor is currently in `ALPHA`. Expect API, dashboard, configuration, and telemetry surface changes while the project is still stabilizing.
 
@@ -27,6 +27,8 @@ NVIDIA GPU telemetry setup is documented in [INSTALLING_DCGM.md](./INSTALLING_DC
 
 Ubuntu bare-metal deployment is documented in [BARE_METAL_DEPLOYMENT.md](./BARE_METAL_DEPLOYMENT.md).
 
+RigMonitor's own metrics, traces, and logs (for operating RigMonitor from Grafana) are documented in [TELEMETRY.md](./TELEMETRY.md).
+
 ## Features
 
 - CPU, memory, network, and disk telemetry
@@ -39,6 +41,7 @@ Ubuntu bare-metal deployment is documented in [BARE_METAL_DEPLOYMENT.md](./BARE_
 - Search, enumeration, detail, delete, and bucketized roll-up APIs for historical telemetry
 - Same-port dashboard with manual refresh, auto-refresh, i18n, vLLM/Utilyze status/telemetry cards, historical analytics at `/dashboard/analytics`, and JSON inspection for the current view
 - OpenAPI document at `/openapi.json` and Swagger UI at `/openapi`
+- Built-in observability of RigMonitor itself: OpenTelemetry metrics and traces for every request, snapshot section, background collector stage, and outbound call (DCGM, Ollama, vLLM, Utilyze, SQLite, subprocesses), exported over OTLP and a Prometheus scrape endpoint, with optional Loki logs, a bundled Prometheus/Tempo/Loki/Grafana stack, and six provisioned Grafana dashboards
 
 ## Endpoints
 
@@ -193,6 +196,16 @@ Logging settings:
 - `Logging.LogFilename`: base log filename. Default is `rigmonitor.log`.
 - `Logging.MinimumSeverity`: minimum emitted severity. Default is `debug`.
 
+Observability settings (RigMonitor's own metrics, traces, and logs; see [TELEMETRY.md](./TELEMETRY.md)):
+
+- `Observability.Enabled`: master switch for exporting RigMonitor's own telemetry. Default is `true`.
+- `Observability.ServiceName`: `service.name` on every signal. Default is `rigmonitor`.
+- `Observability.OtlpEnabled`, `Observability.OtlpEndpoint`, `Observability.OtlpProtocol`: OTLP push of metrics and traces. Defaults are `true`, `http://127.0.0.1:4317`, and `grpc`.
+- `Observability.PrometheusEnabled`, `Observability.PrometheusHostname`, `Observability.PrometheusPort`, `Observability.PrometheusPath`: in-process Prometheus scrape endpoint. Defaults are `true`, `127.0.0.1`, `9464`, and `/metrics`.
+- `Observability.LokiEnabled`, `Observability.LokiEndpoint`, `Observability.LokiTenantId`: direct log export to Loki. Default is disabled.
+- `Observability.TraceSamplingRatio`, `Observability.MetricExportIntervalMs`, `Observability.IncludeRuntimeMetrics`: sampling ratio (default `1.0`), OTLP metric push cadence (default `15000`), and .NET runtime metrics (default `true`).
+- Every observability value can be overridden with a `RIGMONITOR_OBSERVABILITY_*` environment variable without being written to `rigmonitor.json`.
+
 Persistence settings:
 
 - `Persistence.Enabled`: enables the background collector. Default is `true`.
@@ -259,8 +272,20 @@ Use the bundled compose file:
 
 ```powershell
 cd docker
-docker compose up --build
+docker compose up -d --build
 ```
+
+The compose project is named `rigmonitor`. Besides RigMonitor it starts the observability stack for RigMonitor itself, wired together with healthchecks:
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| RigMonitor dashboard | `http://localhost:9990/dashboard` | none |
+| Grafana (RigMonitor folder, six dashboards) | `http://localhost:3000` | `admin` / `admin` (local development only) |
+| Prometheus | `http://localhost:9090` | none |
+| Tempo API | `http://localhost:3200` | none |
+| Loki API | `http://localhost:3100` | none |
+
+Set `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` (for example in an uncommitted `.env` file) before sharing a deployment, and keep Prometheus, Tempo, Loki, and the scrape endpoint off public interfaces. `docker/update.bat` and `docker/update.sh` pull newer images and recreate the stack without deleting volumes. The RigMonitor dashboard's home page links to these tools in its External services card.
 
 This persists settings, logs, and the default SQLite telemetry database under `docker/data/`.
 The compose file mounts the entire `/app/data` directory so `rigmonitor.telemetry.db`, `rigmonitor.telemetry.db-wal`, and `rigmonitor.telemetry.db-shm` stay together. Do not change this to a file-level database mount; SQLite WAL deployments require the sidecar files to persist with the main database.

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0-alpha
+
+- Added production observability for RigMonitor itself: a `RigMonitor` `Meter` and `ActivitySource` (BCL only, no exporter dependency in `RigMonitor.Core` or `RigMonitor.Telemetry`) covering the snapshot workflow and every section, the background collector (job, queued/collect/persist stages, last success), retention, every outbound integration (DCGM exporter, Ollama, vLLM, Utilyze, SQLite, subprocesses), the SQLite concurrency slot, startup, capabilities, errors by type, build info, and safe configuration gauges
+- Added a Radiant 0.1.2 telemetry host in `RigMonitor.Server` that subscribes to the `RigMonitor` and `Watson` sources and exports over OTLP, an in-process Prometheus scrape endpoint (default `127.0.0.1:9464`), and optionally Loki, with .NET runtime metrics and second-based histogram buckets
+- Enabled Watson's built-in HTTP telemetry and W3C trace context propagation explicitly
+- Added the `Observability` settings section and `RIGMONITOR_OBSERVABILITY_*` environment variable overrides
+- Forwarded application log lines to Loki with trace correlation when Loki export is enabled
+- Added Prometheus, Tempo, Loki, and Grafana to `docker/compose.yaml` with healthchecks, dependency ordering, and an explicit `rigmonitor` project name; added `curl` to the runtime image for the healthcheck
+- Added six Grafana dashboards provisioned into a RigMonitor folder: Overview, HTTP, Snapshots & Sections, Collector & Retention, Integrations, and Runtime
+- Added an External services card to the dashboard home page linking to Grafana, Prometheus, Tempo, and Loki, translated into all supported languages
+- Added `docker/update.bat` and `docker/update.sh`
+- Added `TELEMETRY.md` with the full metrics and spans catalog, configuration, dashboards, and recommended alerts
+- Added telemetry tests using in-memory meter and activity listeners
+- Changed a timed-out (not cancelled) background collection to be logged and retried on the next tick instead of silently ending the collection loop
+
 ## 0.1.0
 
 - Initial RigMonitor implementation

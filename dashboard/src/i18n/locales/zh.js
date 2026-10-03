@@ -340,4 +340,27 @@ export default {
     errorTitle: 'OpenAPI 不可用',
     errorBody: '仪表板无法读取 /openapi.json。',
   },
+  externalServices: {
+    title: '外部服务',
+    description: 'RigMonitor Docker 堆栈附带的可观测性工具。可用于查看时间花在哪里以及哪里出错。',
+    service: '服务',
+    url: 'URL',
+    credentials: '凭据',
+    copy: '复制',
+    copied: '已复制',
+    noCredentials: '无需登录',
+    footnote: '当 docker/compose.yaml 中的堆栈运行时可用。默认凭据仅用于本地开发；共享部署前请修改。',
+    names: {
+      grafana: 'Grafana',
+      prometheus: 'Prometheus',
+      tempo: 'Tempo',
+      loki: 'Loki',
+    },
+    hints: {
+      grafana: 'RigMonitor 文件夹中的仪表板',
+      prometheus: '指标和告警查询',
+      tempo: '链路追踪存储 API',
+      loki: '日志存储 API',
+    },
+  },
 }

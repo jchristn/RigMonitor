@@ -340,4 +340,27 @@ export default {
     errorTitle: 'OpenAPI indisponible',
     errorBody: 'Le tableau de bord n\'a pas pu lire /openapi.json.',
   },
+  externalServices: {
+    title: 'Services externes',
+    description: 'Outils d\'observabilité fournis avec la pile Docker de RigMonitor. Utilisez-les pour voir où le temps a été passé et ce qui a échoué.',
+    service: 'Service',
+    url: 'URL',
+    credentials: 'Identifiants',
+    copy: 'Copier',
+    copied: 'Copié',
+    noCredentials: 'Aucune connexion requise',
+    footnote: 'Disponible lorsque la pile de docker/compose.yaml est en cours d\'exécution. Les identifiants par défaut sont réservés au développement local ; modifiez-les avant de partager le déploiement.',
+    names: {
+      grafana: 'Grafana',
+      prometheus: 'Prometheus',
+      tempo: 'Tempo',
+      loki: 'Loki',
+    },
+    hints: {
+      grafana: 'Tableaux de bord du dossier RigMonitor',
+      prometheus: 'Requêtes de métriques et d’alertes',
+      tempo: 'API de stockage des traces',
+      loki: 'API de stockage des journaux',
+    },
+  },
 }

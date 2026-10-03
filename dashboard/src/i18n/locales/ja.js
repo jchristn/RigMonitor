@@ -340,4 +340,27 @@ export default {
     errorTitle: 'OpenAPI を利用できません',
     errorBody: 'ダッシュボードは /openapi.json を読み取れませんでした。',
   },
+  externalServices: {
+    title: '外部サービス',
+    description: 'RigMonitor の Docker スタックに含まれるオブザーバビリティツールです。どこで時間がかかり、何が失敗したかを確認できます。',
+    service: 'サービス',
+    url: 'URL',
+    credentials: '認証情報',
+    copy: 'コピー',
+    copied: 'コピーしました',
+    noCredentials: 'ログイン不要',
+    footnote: 'docker/compose.yaml のスタックが稼働しているときに利用できます。既定の認証情報はローカル開発専用です。デプロイを共有する前に変更してください。',
+    names: {
+      grafana: 'Grafana',
+      prometheus: 'Prometheus',
+      tempo: 'Tempo',
+      loki: 'Loki',
+    },
+    hints: {
+      grafana: 'RigMonitor フォルダーのダッシュボード',
+      prometheus: 'メトリクスとアラートのクエリ',
+      tempo: 'トレース保存 API',
+      loki: 'ログ保存 API',
+    },
+  },
 }

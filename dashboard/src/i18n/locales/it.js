@@ -340,4 +340,27 @@ export default {
     errorTitle: 'OpenAPI non disponibile',
     errorBody: 'La dashboard non è riuscita a leggere /openapi.json.',
   },
+  externalServices: {
+    title: 'Servizi esterni',
+    description: 'Strumenti di osservabilità inclusi nello stack Docker di RigMonitor. Usali per capire dove è stato speso il tempo e cosa non ha funzionato.',
+    service: 'Servizio',
+    url: 'URL',
+    credentials: 'Credenziali',
+    copy: 'Copia',
+    copied: 'Copiato',
+    noCredentials: 'Nessun accesso richiesto',
+    footnote: 'Disponibile quando lo stack in docker/compose.yaml è in esecuzione. Le credenziali predefinite sono solo per lo sviluppo locale; modificale prima di condividere la distribuzione.',
+    names: {
+      grafana: 'Grafana',
+      prometheus: 'Prometheus',
+      tempo: 'Tempo',
+      loki: 'Loki',
+    },
+    hints: {
+      grafana: 'Dashboard nella cartella RigMonitor',
+      prometheus: 'Query di metriche e avvisi',
+      tempo: 'API di archiviazione delle tracce',
+      loki: 'API di archiviazione dei log',
+    },
+  },
 }

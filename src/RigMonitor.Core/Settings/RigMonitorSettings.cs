@@ -36,5 +36,10 @@ namespace RigMonitor.Core.Settings
         /// Telemetry persistence configuration.
         /// </summary>
         public PersistenceSettings Persistence { get; set; } = new PersistenceSettings();
+
+        /// <summary>
+        /// Observability (metrics, traces, logs) export configuration for the RigMonitor process itself.
+        /// </summary>
+        public ObservabilitySettings Observability { get; set; } = new ObservabilitySettings();
     }
 }

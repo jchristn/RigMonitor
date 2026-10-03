@@ -340,4 +340,27 @@ export default {
     errorTitle: 'OpenAPI indisponível',
     errorBody: 'O painel não conseguiu ler /openapi.json.',
   },
+  externalServices: {
+    title: 'Serviços externos',
+    description: 'Ferramentas de observabilidade incluídas na pilha Docker do RigMonitor. Use-as para ver onde o tempo foi gasto e o que falhou.',
+    service: 'Serviço',
+    url: 'URL',
+    credentials: 'Credenciais',
+    copy: 'Copiar',
+    copied: 'Copiado',
+    noCredentials: 'Não requer login',
+    footnote: 'Disponível quando a pilha em docker/compose.yaml está em execução. As credenciais padrão são apenas para desenvolvimento local; altere-as antes de compartilhar a implantação.',
+    names: {
+      grafana: 'Grafana',
+      prometheus: 'Prometheus',
+      tempo: 'Tempo',
+      loki: 'Loki',
+    },
+    hints: {
+      grafana: 'Painéis na pasta RigMonitor',
+      prometheus: 'Consultas de métricas e alertas',
+      tempo: 'API de armazenamento de traces',
+      loki: 'API de armazenamento de logs',
+    },
+  },
 }

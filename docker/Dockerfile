@@ -11,10 +11,16 @@ COPY src/ ./src/
 RUN dotnet publish src/RigMonitor.Server/RigMonitor.Server.csproj -c Release -o /out
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+# curl backs the compose healthcheck.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=server-build /out/ ./
 COPY --from=dashboard-build /src/dashboard/dist ./wwwroot
 RUN mkdir -p /app/data/logs
 VOLUME ["/app/data"]
 EXPOSE 9990
+# Prometheus scrape endpoint for RigMonitor's own metrics (Observability.PrometheusPort).
+EXPOSE 9464
 ENTRYPOINT ["dotnet", "RigMonitor.Server.dll", "--settings", "/app/data/rigmonitor.json"]

@@ -2,6 +2,7 @@ namespace RigMonitor.Telemetry.Services
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.IO;
     using System.Linq;
     using System.Net.Http;
@@ -11,6 +12,7 @@ namespace RigMonitor.Telemetry.Services
     using System.Threading;
     using System.Threading.Tasks;
     using RigMonitor.Core.Models;
+    using RigMonitor.Core.Observability;
     using RigMonitor.Core.Services.Interfaces;
     using RigMonitor.Core.Settings;
 
@@ -60,26 +62,40 @@ namespace RigMonitor.Telemetry.Services
                 return false;
             }
 
-            try
+            using (IntegrationCall call = IntegrationCall.Start(RigMonitorTelemetryNames.ServiceUtilyze, "health", healthUri))
             {
-                using (HttpClient httpClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(_Settings.RequestTimeoutMs) })
-                using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, healthUri))
-                using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false))
+                try
                 {
-                    return response.IsSuccessStatusCode;
+                    using (HttpClient httpClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(_Settings.RequestTimeoutMs) })
+                    using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, healthUri))
+                    using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false))
+                    {
+                        call.SetHttpStatusCode((int)response.StatusCode);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            call.Fail(RigMonitorTelemetryNames.OutcomeHttpError, "Utilyze health endpoint returned HTTP " + (int)response.StatusCode + ".");
+                            return false;
+                        }
+
+                        call.Succeed();
+                        return true;
+                    }
                 }
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                return false;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                return false;
+                catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+                {
+                    call.Fail(exception, cancellationToken);
+                    return false;
+                }
+                catch (OperationCanceledException exception)
+                {
+                    call.Fail(exception, cancellationToken);
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    call.Fail(exception, cancellationToken);
+                    return false;
+                }
             }
         }
 
@@ -125,49 +141,110 @@ namespace RigMonitor.Telemetry.Services
                     return;
                 }
 
-                _ReaderTask = Task.Run(() => ReadLoopAsync(_CancellationTokenSource.Token));
+                // Background hand-off: the reader outlives the request that started it, so it runs as its own
+                // trace root and links back to the triggering span instead of inflating the request trace.
+                ActivityContext? trigger = Activity.Current?.Context;
+                _ReaderTask = Task.Run(() => ReadLoopAsync(trigger, _CancellationTokenSource.Token));
             }
         }
 
-        private async Task ReadLoopAsync(CancellationToken cancellationToken)
+        private async Task ReadLoopAsync(ActivityContext? trigger, CancellationToken cancellationToken)
         {
+            Activity.Current = null;
             Uri liveUri = BuildLiveUri();
+            Uri displayUri = new UriBuilder(liveUri) { Query = String.Empty }.Uri;
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                try
+                bool connected = false;
+                using (Activity? connectionActivity = RigMonitorInstrumentation.StartRootActivity("utilyze connection", ActivityKind.Client, trigger))
                 {
-                    using (ClientWebSocket socket = new ClientWebSocket())
-                    using (CancellationTokenSource connectCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                    trigger = null;
+                    connectionActivity?.SetTag(RigMonitorTelemetryNames.LabelService, RigMonitorTelemetryNames.ServiceUtilyze);
+                    connectionActivity?.SetTag("server.address", displayUri.Host);
+                    connectionActivity?.SetTag("server.port", displayUri.Port);
+                    long messageCount = 0L;
+
+                    try
                     {
-                        connectCancellation.CancelAfter(_Settings.RequestTimeoutMs);
-                        await socket.ConnectAsync(liveUri, connectCancellation.Token).ConfigureAwait(false);
-
-                        while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+                        using (ClientWebSocket socket = new ClientWebSocket())
+                        using (CancellationTokenSource connectCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                         {
-                            string? message = await ReceiveMessageAsync(socket, cancellationToken).ConfigureAwait(false);
-                            if (String.IsNullOrWhiteSpace(message))
+                            connectCancellation.CancelAfter(_Settings.RequestTimeoutMs);
+                            using (IntegrationCall call = IntegrationCall.Start(RigMonitorTelemetryNames.ServiceUtilyze, "connect", displayUri))
                             {
-                                continue;
+                                try
+                                {
+                                    await socket.ConnectAsync(liveUri, connectCancellation.Token).ConfigureAwait(false);
+                                    call.Succeed();
+                                }
+                                catch (Exception exception)
+                                {
+                                    call.Fail(exception, cancellationToken);
+                                    throw;
+                                }
                             }
 
-                            UtilyzeEventDto? eventDto = JsonSerializer.Deserialize<UtilyzeEventDto>(message, _JsonOptions);
-                            if (eventDto != null)
+                            connected = true;
+                            RigMonitorInstrumentation.SetUtilyzeConnected(true);
+
+                            while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
                             {
-                                ApplyEvent(eventDto);
+                                string? message = await ReceiveMessageAsync(socket, cancellationToken).ConfigureAwait(false);
+                                if (String.IsNullOrWhiteSpace(message))
+                                {
+                                    continue;
+                                }
+
+                                UtilyzeEventDto? eventDto = JsonSerializer.Deserialize<UtilyzeEventDto>(message, _JsonOptions);
+                                if (eventDto != null)
+                                {
+                                    messageCount++;
+                                    RigMonitorInstrumentation.RecordUtilyzeMessage(ClassifyEventType(eventDto.Type));
+                                    ApplyEvent(eventDto);
+                                }
                             }
+
+                            connectionActivity?.SetTag("rigmonitor.utilyze.messages", messageCount);
+                            RigMonitorInstrumentation.SetOk(connectionActivity);
+                        }
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        connectionActivity?.SetTag("rigmonitor.utilyze.messages", messageCount);
+                        RigMonitorInstrumentation.SetUtilyzeConnected(false);
+                        return;
+                    }
+                    catch (Exception exception)
+                    {
+                        connectionActivity?.SetTag("rigmonitor.utilyze.messages", messageCount);
+                        RigMonitorInstrumentation.SetError(connectionActivity, exception);
+                        if (connected)
+                        {
+                            RigMonitorInstrumentation.RecordError("utilyze.stream", exception);
                         }
                     }
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
-                catch (Exception)
+
+                RigMonitorInstrumentation.SetUtilyzeConnected(false);
+
+                try
                 {
                     await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
                 }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
+        }
+
+        private static string ClassifyEventType(string? type)
+        {
+            if (String.Equals(type, "init", StringComparison.OrdinalIgnoreCase)) return "init";
+            if (String.Equals(type, "metrics", StringComparison.OrdinalIgnoreCase)) return "metrics";
+            if (String.Equals(type, "ceilings", StringComparison.OrdinalIgnoreCase)) return "ceilings";
+            return "unknown";
         }
 
         private void ApplyEvent(UtilyzeEventDto eventDto)

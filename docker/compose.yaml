@@ -1,11 +1,44 @@
+# RigMonitor plus its observability stack: Prometheus (metrics), Tempo (traces), Loki (logs), Grafana.
+# Bring everything up from this directory with: docker compose up -d --build
+#
+# Browser-reachable ports:
+#   RigMonitor API/dashboard  http://localhost:9990
+#   RigMonitor metrics        scraped by Prometheus at rigmonitor:9464 (not published to the host)
+#   Grafana                   http://localhost:3000   (admin / admin, local development only)
+#   Prometheus                http://localhost:9090
+#   Tempo API                 http://localhost:3200
+#   Loki API                  http://localhost:3100
+#
+# Outside local development, override GF_SECURITY_ADMIN_PASSWORD out of band (for example
+# GRAFANA_ADMIN_PASSWORD in a .env file that is not committed) and do not publish 9090, 3100, 3200,
+# 4317, 4318, or 9464 on a public interface.
+
+# Explicit project name: without it Compose derives "docker" from this directory name, which collides
+# with any other repository that also keeps its compose file under docker/.
+name: rigmonitor
+
 services:
   rigmonitor:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: rigmonitor
+    # The Prometheus scrape listener matches the Host header, so it binds to this name, which is
+    # also the scrape target in prometheus.yaml. Port 9464 stays on the internal compose network.
+    hostname: rigmonitor
     ports:
       - "9990:9990"
+    environment:
+      RIGMONITOR_OBSERVABILITY_ENABLED: "true"
+      RIGMONITOR_OBSERVABILITY_SERVICE_NAME: "rigmonitor"
+      RIGMONITOR_OBSERVABILITY_OTLP_ENABLED: "true"
+      RIGMONITOR_OBSERVABILITY_OTLP_ENDPOINT: "http://tempo:4317"
+      RIGMONITOR_OBSERVABILITY_OTLP_PROTOCOL: "grpc"
+      RIGMONITOR_OBSERVABILITY_PROMETHEUS_ENABLED: "true"
+      RIGMONITOR_OBSERVABILITY_PROMETHEUS_HOSTNAME: "rigmonitor"
+      RIGMONITOR_OBSERVABILITY_PROMETHEUS_PORT: "9464"
+      RIGMONITOR_OBSERVABILITY_LOKI_ENABLED: "true"
+      RIGMONITOR_OBSERVABILITY_LOKI_ENDPOINT: "http://loki:3100/otlp"
     volumes:
       # Persist the entire runtime data directory. SQLite WAL mode writes the
       # main database, -wal, and -shm files side-by-side; do not mount only the
@@ -13,4 +46,112 @@ services:
       - type: bind
         source: ./data
         target: /app/data
+    depends_on:
+      tempo:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9990/livez"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 30s
     restart: unless-stopped
+
+  prometheus:
+    container_name: rigmonitor-prometheus
+    image: "prom/prometheus:v3.5.4"
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - rigmonitor-prometheus-data:/prometheus
+    depends_on:
+      rigmonitor:
+        condition: service_healthy
+    healthcheck:
+      # The prometheus image ships wget, not curl.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/-/healthy || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 20s
+    restart: unless-stopped
+
+  tempo:
+    container_name: rigmonitor-tempo
+    # Pinned: later builds reject the standard ingester/compactor sections of this config.
+    image: "grafana/tempo:2.6.1"
+    command: ["-config.file=/etc/tempo.yaml"]
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+      - rigmonitor-tempo-data:/var/tempo
+    healthcheck:
+      # The tempo image ships wget, not curl. /ready returns 503 until ready.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3200/ready || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 40s
+    restart: unless-stopped
+
+  loki:
+    container_name: rigmonitor-loki
+    image: "grafana/loki:3.3.0"
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki.yaml:/etc/loki/loki.yaml:ro
+      - rigmonitor-loki-data:/loki
+    healthcheck:
+      # The loki image ships busybox wget, not curl. /ready returns 503 until ready.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3100/ready || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 30s
+    restart: unless-stopped
+
+  grafana:
+    container_name: rigmonitor-grafana
+    image: "grafana/grafana-oss:13.0.2"
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - rigmonitor-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../assets/grafana:/var/lib/grafana/dashboards/rigmonitor:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  rigmonitor-prometheus-data:
+  rigmonitor-tempo-data:
+  rigmonitor-loki-data:
+  rigmonitor-grafana-data:

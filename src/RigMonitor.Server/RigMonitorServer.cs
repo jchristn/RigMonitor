@@ -2,6 +2,7 @@ namespace RigMonitor.Server
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.IO;
     using System.Linq;
     using System.Threading;
@@ -9,6 +10,7 @@ namespace RigMonitor.Server
     using RigMonitor.Core;
     using RigMonitor.Core.Database;
     using RigMonitor.Core.Models;
+    using RigMonitor.Core.Observability;
     using RigMonitor.Core.Services.Interfaces;
     using RigMonitor.Core.Settings;
     using RigMonitor.Server.Dashboard;
@@ -43,6 +45,7 @@ namespace RigMonitor.Server
         private readonly IRuntimeCapabilitiesService _RuntimeCapabilitiesService;
         private readonly TelemetryPersistenceService _TelemetryPersistenceService;
         private readonly StaticFileHandler _StaticFileHandler;
+        private readonly ObservabilityService _Observability;
         private int _Started = 0;
 
         private RigMonitorServer(
@@ -52,7 +55,8 @@ namespace RigMonitor.Server
             ITelemetryService telemetryService,
             IRuntimeCapabilitiesService runtimeCapabilitiesService,
             TelemetryPersistenceService telemetryPersistenceService,
-            StaticFileHandler staticFileHandler)
+            StaticFileHandler staticFileHandler,
+            ObservabilityService observability)
         {
             Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _Logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -61,8 +65,19 @@ namespace RigMonitor.Server
             _RuntimeCapabilitiesService = runtimeCapabilitiesService ?? throw new ArgumentNullException(nameof(runtimeCapabilitiesService));
             _TelemetryPersistenceService = telemetryPersistenceService ?? throw new ArgumentNullException(nameof(telemetryPersistenceService));
             _StaticFileHandler = staticFileHandler ?? throw new ArgumentNullException(nameof(staticFileHandler));
+            _Observability = observability ?? throw new ArgumentNullException(nameof(observability));
 
             CoreWebserverSettings webserverSettings = new CoreWebserverSettings(Settings.Webserver.Hostname, Settings.Webserver.Port, Settings.Webserver.Ssl);
+
+            // Watson emits the HTTP layer (request metrics and one server span per request) on the "Watson"
+            // meter and activity source, which the observability host subscribes to. The in-process Prometheus
+            // endpoint stays off because the observability host serves one scrape endpoint for every meter.
+            webserverSettings.Telemetry.Enable = true;
+            webserverSettings.Telemetry.EnableMetrics = true;
+            webserverSettings.Telemetry.EnableTraces = true;
+            webserverSettings.Telemetry.PropagateContext = true;
+            webserverSettings.Telemetry.Prometheus.Enable = false;
+
             Server = new Webserver(webserverSettings, DefaultRouteAsync);
         }
 
@@ -78,66 +93,106 @@ namespace RigMonitor.Server
             AppLogger logger = new AppLogger(settings.Logging);
             logger.Debug("Startup initialization began using settings file " + Path.GetFullPath(settingsFile));
 
-            IDcgmExporterClient dcgmClient = new DcgmExporterClient(settings.Telemetry);
-            IOllamaClient ollamaClient = new OllamaClient(settings.Telemetry);
-            IVllmTelemetryProvider vllmTelemetryProvider = new VllmTelemetryProvider(settings.Telemetry);
-            IUtilyzeTelemetryProvider utilyzeTelemetryProvider = new UtilyzeTelemetryProvider(settings.Telemetry);
-            IRuntimeCapabilitiesService runtimeCapabilitiesService = new RuntimeCapabilitiesService(
-                settings.Telemetry,
-                settings.Dashboard.Enabled,
-                dcgmClient,
-                ollamaClient,
-                vllmTelemetryProvider,
-                utilyzeTelemetryProvider);
+            ObservabilityService observability = new ObservabilityService(settings.Observability, logger);
+            if (settings.Observability.LokiEnabled)
+            {
+                logger.AttachSink(observability.CreateLogger(Constants.ProductName));
+            }
 
-            await runtimeCapabilitiesService.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            RigMonitorInstrumentation.SetConfiguration(
+                settings.Persistence.CollectionIntervalMs / 1000D,
+                settings.Persistence.RetentionDays * 86400D,
+                settings.Telemetry.RequestTimeoutMs / 1000D,
+                settings.Telemetry.SectionStaleAfterMs / 1000D,
+                settings.Persistence.Enabled);
 
-            ISystemTelemetryProvider systemTelemetryProvider = SystemTelemetryProviderFactory.Create();
-            IMemoryInfoProvider memoryInfoProvider = new DefaultMemoryInfoProvider();
-            INetworkRateSampler networkRateSampler = new DefaultNetworkRateSampler();
-            IGpuTelemetryProvider gpuTelemetryProvider = new NvidiaDcgmGpuTelemetryProvider(settings.Telemetry, dcgmClient);
-            ITelemetryService telemetryService = new TelemetryService(
-                settings.Telemetry,
-                systemTelemetryProvider,
-                memoryInfoProvider,
-                networkRateSampler,
-                runtimeCapabilitiesService,
-                gpuTelemetryProvider,
-                ollamaClient,
-                vllmTelemetryProvider,
-                utilyzeTelemetryProvider);
+            long startupTimestamp = Stopwatch.GetTimestamp();
+            using (Activity? startup = RigMonitorInstrumentation.StartActivity(RigMonitorTelemetryNames.SpanStartup))
+            {
+                startup?.SetTag("rigmonitor.version", RigMonitorInstrumentation.Version);
 
-            await telemetryService.WarmupAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    IDcgmExporterClient dcgmClient = new DcgmExporterClient(settings.Telemetry);
+                    IOllamaClient ollamaClient = new OllamaClient(settings.Telemetry);
+                    IVllmTelemetryProvider vllmTelemetryProvider = new VllmTelemetryProvider(settings.Telemetry);
+                    IUtilyzeTelemetryProvider utilyzeTelemetryProvider = new UtilyzeTelemetryProvider(settings.Telemetry);
+                    IRuntimeCapabilitiesService runtimeCapabilitiesService = new RuntimeCapabilitiesService(
+                        settings.Telemetry,
+                        settings.Dashboard.Enabled,
+                        dcgmClient,
+                        ollamaClient,
+                        vllmTelemetryProvider,
+                        utilyzeTelemetryProvider);
 
-            DatabaseDriverBase database = DatabaseDriverFactory.Create(settings.Persistence);
-            await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+                    await runtimeCapabilitiesService.InitializeAsync(cancellationToken).ConfigureAwait(false);
 
-            TelemetryPersistenceService telemetryPersistenceService = new TelemetryPersistenceService(
-                settings.Persistence,
-                database,
-                telemetryService,
-                logger);
+                    ISystemTelemetryProvider systemTelemetryProvider = SystemTelemetryProviderFactory.Create();
+                    IMemoryInfoProvider memoryInfoProvider = new DefaultMemoryInfoProvider();
+                    INetworkRateSampler networkRateSampler = new DefaultNetworkRateSampler();
+                    IGpuTelemetryProvider gpuTelemetryProvider = new NvidiaDcgmGpuTelemetryProvider(settings.Telemetry, dcgmClient);
+                    ITelemetryService telemetryService = new TelemetryService(
+                        settings.Telemetry,
+                        systemTelemetryProvider,
+                        memoryInfoProvider,
+                        networkRateSampler,
+                        runtimeCapabilitiesService,
+                        gpuTelemetryProvider,
+                        ollamaClient,
+                        vllmTelemetryProvider,
+                        utilyzeTelemetryProvider);
 
-            StaticFileHandler staticFileHandler = new StaticFileHandler(settings, logger);
-            RigMonitorServer host = new RigMonitorServer(
-                settings,
-                logger,
-                database,
-                telemetryService,
-                runtimeCapabilitiesService,
-                telemetryPersistenceService,
-                staticFileHandler);
+                    await telemetryService.WarmupAsync(cancellationToken).ConfigureAwait(false);
 
-            logger.Debug("Startup initialization complete.");
-            logger.Info("Settings loaded from " + settingsFile);
-            logger.Info("Telemetry persistence database: " + settings.Persistence.Database.Type + " " + settings.Persistence.Database.Filename);
-            logger.Info("Telemetry persistence hostname: " + settings.Persistence.Hostname);
-            logger.Info("Runtime platform: " + runtimeCapabilitiesService.Current.HostPlatform);
-            logger.Info("DCGM available: " + runtimeCapabilitiesService.Current.NvidiaAvailable);
-            logger.Info("Ollama available: " + runtimeCapabilitiesService.Current.OllamaAvailable);
-            logger.Info("vLLM available: " + runtimeCapabilitiesService.Current.VllmAvailable);
-            logger.Info("Utilyze available: " + runtimeCapabilitiesService.Current.UtilyzeAvailable);
-            return host;
+                    DatabaseDriverBase database = DatabaseDriverFactory.Create(settings.Persistence);
+                    await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+
+                    TelemetryPersistenceService telemetryPersistenceService = new TelemetryPersistenceService(
+                        settings.Persistence,
+                        database,
+                        telemetryService,
+                        logger);
+
+                    StaticFileHandler staticFileHandler = new StaticFileHandler(settings, logger);
+                    RigMonitorServer host = new RigMonitorServer(
+                        settings,
+                        logger,
+                        database,
+                        telemetryService,
+                        runtimeCapabilitiesService,
+                        telemetryPersistenceService,
+                        staticFileHandler,
+                        observability);
+
+                    logger.Debug("Startup initialization complete.");
+                    logger.Info("Settings loaded from " + settingsFile);
+                    logger.Info("Telemetry persistence database: " + settings.Persistence.Database.Type + " " + settings.Persistence.Database.Filename);
+                    logger.Info("Telemetry persistence hostname: " + settings.Persistence.Hostname);
+                    logger.Info("Runtime platform: " + runtimeCapabilitiesService.Current.HostPlatform);
+                    logger.Info("DCGM available: " + runtimeCapabilitiesService.Current.NvidiaAvailable);
+                    logger.Info("Ollama available: " + runtimeCapabilitiesService.Current.OllamaAvailable);
+                    logger.Info("vLLM available: " + runtimeCapabilitiesService.Current.VllmAvailable);
+                    logger.Info("Utilyze available: " + runtimeCapabilitiesService.Current.UtilyzeAvailable);
+
+                    RigMonitorInstrumentation.SetOk(startup);
+                    RigMonitorInstrumentation.RecordStartup(RigMonitorTelemetryNames.OutcomeOk, RigMonitorInstrumentation.ElapsedSeconds(startupTimestamp));
+                    return host;
+                }
+                catch (Exception exception)
+                {
+                    string outcome = RigMonitorInstrumentation.ClassifyException(exception, cancellationToken);
+                    if (outcome != RigMonitorTelemetryNames.OutcomeCancelled)
+                    {
+                        RigMonitorInstrumentation.SetError(startup, exception);
+                        RigMonitorInstrumentation.RecordError("startup", exception);
+                    }
+
+                    RigMonitorInstrumentation.RecordStartup(outcome, RigMonitorInstrumentation.ElapsedSeconds(startupTimestamp));
+                    startup?.Dispose();
+                    observability.Dispose();
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -176,6 +231,7 @@ namespace RigMonitor.Server
         {
             if (Interlocked.Exchange(ref _Started, 0) == 0)
             {
+                _Observability.Dispose();
                 return;
             }
 
@@ -193,6 +249,10 @@ namespace RigMonitor.Server
 
             _Logger.Info("RigMonitor stopped");
             _Logger.Debug("Shutdown sequence complete.");
+
+            // Last, so shutdown spans, metrics, and log lines above are flushed.
+            _Logger.AttachSink(null);
+            _Observability.Dispose();
         }
 
         private void ConfigureServer()

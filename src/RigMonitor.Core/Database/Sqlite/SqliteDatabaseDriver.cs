@@ -2,6 +2,7 @@ namespace RigMonitor.Core.Database.Sqlite
 {
     using System;
     using System.Data;
+    using System.Diagnostics;
     using System.IO;
     using System.Threading;
     using System.Threading.Tasks;
@@ -9,6 +10,7 @@ namespace RigMonitor.Core.Database.Sqlite
     using RigMonitor.Core.Database.Interfaces;
     using RigMonitor.Core.Database.Sqlite.Implementations;
     using RigMonitor.Core.Database.Sqlite.Queries;
+    using RigMonitor.Core.Observability;
 
     /// <summary>
     /// SQLite database driver.
@@ -46,7 +48,9 @@ namespace RigMonitor.Core.Database.Sqlite
             }
 
             _ConnectionString = "Data Source=" + fullPath + ";Pooling=false";
-            TelemetryHistory = new TelemetryHistoryMethods(this, String.IsNullOrWhiteSpace(hostname) ? "localhost" : hostname.Trim());
+            TelemetryHistory = new InstrumentedTelemetryHistoryMethods(
+                new TelemetryHistoryMethods(this, String.IsNullOrWhiteSpace(hostname) ? "localhost" : hostname.Trim()),
+                RigMonitorTelemetryNames.ServiceSqlite);
         }
 
         /// <inheritdoc />
@@ -54,17 +58,33 @@ namespace RigMonitor.Core.Database.Sqlite
         {
             token.ThrowIfCancellationRequested();
 
-            await ExecuteNonQueryAsync("PRAGMA journal_mode=WAL;", token).ConfigureAwait(false);
-            await ExecuteNonQueryAsync(SetupQueries.CreateTablesAndIndexes(), token).ConfigureAwait(false);
-
-            foreach (string migration in SetupQueries.GetMigrationStatements())
+            using (IntegrationCall call = IntegrationCall.Start(RigMonitorTelemetryNames.ServiceSqlite, "initialize"))
             {
+                call.SetTag("db.system.name", "sqlite");
+                call.SetTag("db.operation.name", "initialize");
+
                 try
                 {
-                    await ExecuteNonQueryAsync(migration, token).ConfigureAwait(false);
+                    await ExecuteNonQueryAsync("PRAGMA journal_mode=WAL;", token).ConfigureAwait(false);
+                    await ExecuteNonQueryAsync(SetupQueries.CreateTablesAndIndexes(), token).ConfigureAwait(false);
+
+                    foreach (string migration in SetupQueries.GetMigrationStatements())
+                    {
+                        try
+                        {
+                            await ExecuteNonQueryAsync(migration, token).ConfigureAwait(false);
+                        }
+                        catch (SqliteException)
+                        {
+                        }
+                    }
+
+                    call.Succeed();
                 }
-                catch (SqliteException)
+                catch (Exception exception)
                 {
+                    call.Fail(exception, token);
+                    throw;
                 }
             }
         }
@@ -83,7 +103,7 @@ namespace RigMonitor.Core.Database.Sqlite
             if (String.IsNullOrWhiteSpace(query)) throw new ArgumentNullException(nameof(query));
             token.ThrowIfCancellationRequested();
 
-            await _DatabaseLock.WaitAsync(token).ConfigureAwait(false);
+            await AcquireLockAsync(token).ConfigureAwait(false);
             try
             {
                 using (SqliteConnection connection = await OpenConnectionAsync(token).ConfigureAwait(false))
@@ -100,7 +120,7 @@ namespace RigMonitor.Core.Database.Sqlite
             }
             finally
             {
-                _DatabaseLock.Release();
+                ReleaseLock();
             }
         }
 
@@ -109,7 +129,7 @@ namespace RigMonitor.Core.Database.Sqlite
             if (String.IsNullOrWhiteSpace(query)) throw new ArgumentNullException(nameof(query));
             token.ThrowIfCancellationRequested();
 
-            await _DatabaseLock.WaitAsync(token).ConfigureAwait(false);
+            await AcquireLockAsync(token).ConfigureAwait(false);
             try
             {
                 using (SqliteConnection connection = await OpenConnectionAsync(token).ConfigureAwait(false))
@@ -123,7 +143,7 @@ namespace RigMonitor.Core.Database.Sqlite
             }
             finally
             {
-                _DatabaseLock.Release();
+                ReleaseLock();
             }
         }
 
@@ -132,7 +152,7 @@ namespace RigMonitor.Core.Database.Sqlite
             if (action == null) throw new ArgumentNullException(nameof(action));
             token.ThrowIfCancellationRequested();
 
-            await _DatabaseLock.WaitAsync(token).ConfigureAwait(false);
+            await AcquireLockAsync(token).ConfigureAwait(false);
             try
             {
                 using (SqliteConnection connection = await OpenConnectionAsync(token).ConfigureAwait(false))
@@ -154,7 +174,7 @@ namespace RigMonitor.Core.Database.Sqlite
             }
             finally
             {
-                _DatabaseLock.Release();
+                ReleaseLock();
             }
         }
 
@@ -167,6 +187,35 @@ namespace RigMonitor.Core.Database.Sqlite
             {
                 command.Parameters.Add(parameter);
             }
+        }
+
+        private async Task AcquireLockAsync(CancellationToken token)
+        {
+            long startTimestamp = Stopwatch.GetTimestamp();
+            RigMonitorInstrumentation.AddDatabaseLockWaiting(1);
+            try
+            {
+                await _DatabaseLock.WaitAsync(token).ConfigureAwait(false);
+                RigMonitorInstrumentation.AddDatabaseLockInUse(1);
+                RigMonitorInstrumentation.RecordDatabaseLockWait(RigMonitorTelemetryNames.OutcomeOk, RigMonitorInstrumentation.ElapsedSeconds(startTimestamp));
+            }
+            catch (OperationCanceledException exception)
+            {
+                RigMonitorInstrumentation.RecordDatabaseLockWait(
+                    RigMonitorInstrumentation.ClassifyException(exception, token),
+                    RigMonitorInstrumentation.ElapsedSeconds(startTimestamp));
+                throw;
+            }
+            finally
+            {
+                RigMonitorInstrumentation.AddDatabaseLockWaiting(-1);
+            }
+        }
+
+        private void ReleaseLock()
+        {
+            RigMonitorInstrumentation.AddDatabaseLockInUse(-1);
+            _DatabaseLock.Release();
         }
 
         private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken token)

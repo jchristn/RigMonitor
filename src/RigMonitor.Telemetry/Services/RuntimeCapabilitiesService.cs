@@ -1,9 +1,11 @@
 namespace RigMonitor.Telemetry.Services
 {
     using System;
+    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
     using RigMonitor.Core.Models;
+    using RigMonitor.Core.Observability;
     using RigMonitor.Core.Services.Interfaces;
     using RigMonitor.Core.Settings;
     using RigMonitor.Telemetry.Platform.Shared;
@@ -79,11 +81,37 @@ namespace RigMonitor.Telemetry.Services
         /// <param name="cancellationToken">Cancellation token.</param>
         public async Task InitializeAsync(CancellationToken cancellationToken)
         {
-            _Current.NvidiaAvailable = await ProbeDcgmAsync(cancellationToken).ConfigureAwait(false);
-            _Current.OllamaAvailable = await _OllamaClient.IsAvailableAsync(cancellationToken).ConfigureAwait(false);
-            _Current.VllmAvailable = await _VllmTelemetryProvider.IsAvailableAsync(cancellationToken).ConfigureAwait(false);
-            _Current.UtilyzeAvailable = await _UtilyzeTelemetryProvider.IsAvailableAsync(cancellationToken).ConfigureAwait(false);
-            _Current.CollectedUtc = DateTime.UtcNow;
+            using (Activity? activity = RigMonitorInstrumentation.StartActivity(RigMonitorTelemetryNames.SpanCapabilitiesProbe))
+            {
+                try
+                {
+                    _Current.NvidiaAvailable = await ProbeDcgmAsync(cancellationToken).ConfigureAwait(false);
+                    _Current.OllamaAvailable = await _OllamaClient.IsAvailableAsync(cancellationToken).ConfigureAwait(false);
+                    _Current.VllmAvailable = await _VllmTelemetryProvider.IsAvailableAsync(cancellationToken).ConfigureAwait(false);
+                    _Current.UtilyzeAvailable = await _UtilyzeTelemetryProvider.IsAvailableAsync(cancellationToken).ConfigureAwait(false);
+                    _Current.CollectedUtc = DateTime.UtcNow;
+
+                    RigMonitorInstrumentation.SetCapability("nvidia", _Current.NvidiaAvailable);
+                    RigMonitorInstrumentation.SetCapability("ollama", _Current.OllamaAvailable);
+                    RigMonitorInstrumentation.SetCapability("vllm", _Current.VllmAvailable);
+                    RigMonitorInstrumentation.SetCapability("utilyze", _Current.UtilyzeAvailable);
+                    activity?.SetTag("rigmonitor.capability.nvidia", _Current.NvidiaAvailable);
+                    activity?.SetTag("rigmonitor.capability.ollama", _Current.OllamaAvailable);
+                    activity?.SetTag("rigmonitor.capability.vllm", _Current.VllmAvailable);
+                    activity?.SetTag("rigmonitor.capability.utilyze", _Current.UtilyzeAvailable);
+                    RigMonitorInstrumentation.SetOk(activity);
+                }
+                catch (Exception exception)
+                {
+                    if (!(exception is OperationCanceledException))
+                    {
+                        RigMonitorInstrumentation.SetError(activity, exception);
+                        RigMonitorInstrumentation.RecordError("capabilities", exception);
+                    }
+
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -93,6 +121,7 @@ namespace RigMonitor.Telemetry.Services
         public void SetTelemetryWarm(bool isWarm)
         {
             _Current.TelemetryWarm = isWarm;
+            RigMonitorInstrumentation.SetTelemetryWarm(isWarm);
             _Current.CollectedUtc = DateTime.UtcNow;
         }
 

@@ -2,6 +2,7 @@ namespace RigMonitor.Server.Services
 {
     using System;
     using System.IO;
+    using Microsoft.Extensions.Logging;
     using RigMonitor.Core;
     using RigMonitor.Core.Enums;
     using RigMonitor.Core.Settings;
@@ -13,6 +14,7 @@ namespace RigMonitor.Server.Services
     public class AppLogger
     {
         private readonly LoggingModule _Module;
+        private ILogger? _Sink = null;
 
         /// <summary>
         /// Instantiate the logger.
@@ -51,6 +53,7 @@ namespace RigMonitor.Server.Services
         public void Debug(string message)
         {
             _Module.Debug(message);
+            Forward(LogLevel.Debug, message, null);
         }
 
         /// <summary>
@@ -60,6 +63,7 @@ namespace RigMonitor.Server.Services
         public void Info(string message)
         {
             _Module.Info(message);
+            Forward(LogLevel.Information, message, null);
         }
 
         /// <summary>
@@ -69,6 +73,7 @@ namespace RigMonitor.Server.Services
         public void Warn(string message)
         {
             _Module.Warn(message);
+            Forward(LogLevel.Warning, message, null);
         }
 
         /// <summary>
@@ -78,6 +83,7 @@ namespace RigMonitor.Server.Services
         public void Error(string message)
         {
             _Module.Error(message);
+            Forward(LogLevel.Error, message, null);
         }
 
         /// <summary>
@@ -89,6 +95,32 @@ namespace RigMonitor.Server.Services
         {
             if (exception == null) throw new ArgumentNullException(nameof(exception));
             _Module.Error(message + Environment.NewLine + exception);
+            Forward(LogLevel.Error, message, exception);
+        }
+
+        /// <summary>
+        /// Attach a structured log sink (for example the OTLP/Loki pipeline). Every subsequent message is also
+        /// written to the sink, stamped with the current trace and span when one is active.
+        /// Sink failures are ignored. Pass null to detach.
+        /// </summary>
+        /// <param name="sink">Sink logger, or null.</param>
+        public void AttachSink(ILogger? sink)
+        {
+            _Sink = sink;
+        }
+
+        private void Forward(LogLevel level, string message, Exception? exception)
+        {
+            ILogger? sink = _Sink;
+            if (sink == null) return;
+            try
+            {
+                if (!sink.IsEnabled(level)) return;
+                sink.Log(level, exception, "{Message}", message);
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private static Severity MapSeverity(LogSeverityEnum severity)

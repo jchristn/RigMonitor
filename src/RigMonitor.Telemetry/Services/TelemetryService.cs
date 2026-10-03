@@ -2,10 +2,12 @@ namespace RigMonitor.Telemetry.Services
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
     using RigMonitor.Core.Enums;
     using RigMonitor.Core.Models;
+    using RigMonitor.Core.Observability;
     using RigMonitor.Core.Services.Interfaces;
     using RigMonitor.Core.Settings;
 
@@ -103,16 +105,36 @@ namespace RigMonitor.Telemetry.Services
         /// <param name="cancellationToken">Cancellation token.</param>
         public async Task WarmupAsync(CancellationToken cancellationToken)
         {
-            await _SystemTelemetryProvider.WarmupAsync(cancellationToken).ConfigureAwait(false);
-            await _NetworkRateSampler.WarmupAsync(cancellationToken).ConfigureAwait(false);
-
-            if (_Settings.WarmupDelayMs > 0)
+            using (Activity? activity = RigMonitorInstrumentation.StartActivity(RigMonitorTelemetryNames.SpanWarmup))
             {
-                await Task.Delay(_Settings.WarmupDelayMs, cancellationToken).ConfigureAwait(false);
-            }
+                try
+                {
+                    activity?.SetTag("rigmonitor.warmup.delay_ms", _Settings.WarmupDelayMs);
+                    await _SystemTelemetryProvider.WarmupAsync(cancellationToken).ConfigureAwait(false);
+                    await _NetworkRateSampler.WarmupAsync(cancellationToken).ConfigureAwait(false);
 
-            _IsWarm = true;
-            _RuntimeCapabilitiesService.SetTelemetryWarm(true);
+                    if (_Settings.WarmupDelayMs > 0)
+                    {
+                        await Task.Delay(_Settings.WarmupDelayMs, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    _IsWarm = true;
+                    _RuntimeCapabilitiesService.SetTelemetryWarm(true);
+                    RigMonitorInstrumentation.SetTelemetryWarm(true);
+                    RigMonitorInstrumentation.SetOk(activity);
+                }
+                catch (Exception exception)
+                {
+                    RigMonitorInstrumentation.SetTelemetryWarm(false);
+                    if (!(exception is OperationCanceledException))
+                    {
+                        RigMonitorInstrumentation.SetError(activity, exception);
+                        RigMonitorInstrumentation.RecordError("warmup", exception);
+                    }
+
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -125,6 +147,40 @@ namespace RigMonitor.Telemetry.Services
         {
             if (requestOptions == null) throw new ArgumentNullException(nameof(requestOptions));
 
+            string scope = IsFullScope(requestOptions) ? "full" : "partial";
+            long startTimestamp = Stopwatch.GetTimestamp();
+
+            using (Activity? activity = RigMonitorInstrumentation.StartActivity(RigMonitorTelemetryNames.SpanSnapshot))
+            {
+                activity?.SetTag(RigMonitorTelemetryNames.LabelSnapshotScope, scope);
+
+                try
+                {
+                    TelemetrySnapshot snapshot = await CaptureSnapshotAsync(requestOptions, cancellationToken).ConfigureAwait(false);
+                    string outcome = DetermineSnapshotOutcome(snapshot.Collection);
+                    activity?.SetTag(RigMonitorTelemetryNames.LabelOutcome, outcome);
+                    RigMonitorInstrumentation.SetOk(activity);
+                    RigMonitorInstrumentation.RecordSnapshot(scope, outcome, RigMonitorInstrumentation.ElapsedSeconds(startTimestamp));
+                    return snapshot;
+                }
+                catch (Exception exception)
+                {
+                    string outcome = RigMonitorInstrumentation.ClassifyException(exception, cancellationToken);
+                    activity?.SetTag(RigMonitorTelemetryNames.LabelOutcome, outcome);
+                    if (outcome != RigMonitorTelemetryNames.OutcomeCancelled)
+                    {
+                        RigMonitorInstrumentation.SetError(activity, exception);
+                        RigMonitorInstrumentation.RecordError("snapshot", exception);
+                    }
+
+                    RigMonitorInstrumentation.RecordSnapshot(scope, outcome, RigMonitorInstrumentation.ElapsedSeconds(startTimestamp));
+                    throw;
+                }
+            }
+        }
+
+        private async Task<TelemetrySnapshot> CaptureSnapshotAsync(TelemetryRequestOptions requestOptions, CancellationToken cancellationToken)
+        {
             RuntimeCapabilities capabilities = _RuntimeCapabilitiesService.Current;
             DateTime collectedUtc = _TimeProvider.GetUtcNow().UtcDateTime;
 
@@ -223,6 +279,45 @@ namespace RigMonitor.Telemetry.Services
             return snapshot;
         }
 
+        private static bool IsFullScope(TelemetryRequestOptions options)
+        {
+            return options.IncludeSystem
+                && options.IncludeCpu
+                && options.IncludeMemory
+                && options.IncludeNetwork
+                && options.IncludeDisk
+                && options.IncludeGpu
+                && options.IncludeOllama
+                && options.IncludeVllm
+                && options.IncludeUtilyze;
+        }
+
+        private static string DetermineSnapshotOutcome(TelemetryCollectionMetadata? collection)
+        {
+            if (collection == null) return RigMonitorTelemetryNames.OutcomeOk;
+
+            TelemetrySectionCollectionStatus?[] sections = new TelemetrySectionCollectionStatus?[]
+            {
+                collection.System,
+                collection.Cpu,
+                collection.Memory,
+                collection.Network,
+                collection.Disk,
+                collection.Gpu,
+                collection.Ollama,
+                collection.Vllm,
+                collection.Utilyze
+            };
+
+            foreach (TelemetrySectionCollectionStatus? section in sections)
+            {
+                if (section == null || !section.Requested || !section.Supported) continue;
+                if (section.StatusCode != TelemetryCollectionStatusCodeEnum.Ok) return RigMonitorTelemetryNames.OutcomeDegraded;
+            }
+
+            return RigMonitorTelemetryNames.OutcomeOk;
+        }
+
         private static void ApplyUnifiedMemoryGpuFallback(TelemetrySnapshot snapshot)
         {
             if (snapshot.Memory == null || snapshot.Gpu == null)
@@ -278,94 +373,123 @@ namespace RigMonitor.Telemetry.Services
         {
             if (!requested)
             {
+                RigMonitorInstrumentation.RecordSection(sectionName, "disabled", null);
                 return BuildResponseStatus(sectionName, false, supported, _TimeProvider.GetUtcNow().UtcDateTime);
             }
 
             if (!supported)
             {
+                RigMonitorInstrumentation.RecordSection(sectionName, "unsupported", null);
                 return BuildResponseStatus(sectionName, true, false, _TimeProvider.GetUtcNow().UtcDateTime);
             }
 
             DateTime attemptUtc = _TimeProvider.GetUtcNow().UtcDateTime;
             long startTimestamp = _TimeProvider.GetTimestamp();
+            string metricStatus = "error";
 
-            try
+            using (Activity? activity = RigMonitorInstrumentation.StartActivity(RigMonitorTelemetryNames.SpanStagePrefix + sectionName))
             {
-                TTelemetry? telemetry = await collector(cancellationToken).ConfigureAwait(false);
-                double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
+                activity?.SetTag(RigMonitorTelemetryNames.LabelSection, sectionName);
 
-                if (telemetry != null)
+                try
                 {
-                    applyTelemetry(telemetry);
-                    UpdateTrackedState(sectionName, TelemetryCollectionStatusCodeEnum.Ok, true, attemptUtc, durationMs, null, true);
+                    TTelemetry? telemetry = await collector(cancellationToken).ConfigureAwait(false);
+                    double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
+
+                    if (telemetry != null)
+                    {
+                        applyTelemetry(telemetry);
+                        UpdateTrackedState(sectionName, TelemetryCollectionStatusCodeEnum.Ok, true, attemptUtc, durationMs, null, true);
+                        metricStatus = "ok";
+                        RigMonitorInstrumentation.SetOk(activity);
+                        RigMonitorInstrumentation.SetSectionLastSuccess(sectionName, attemptUtc);
+                    }
+                    else
+                    {
+                        UpdateTrackedState(
+                            sectionName,
+                            TelemetryCollectionStatusCodeEnum.Unavailable,
+                            false,
+                            attemptUtc,
+                            durationMs,
+                            null,
+                            true);
+                        metricStatus = "unavailable";
+                        RigMonitorInstrumentation.SetError(activity, "unavailable", "Collector returned no sample.");
+                    }
                 }
-                else
+                catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
                 {
+                    double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
                     UpdateTrackedState(
                         sectionName,
-                        TelemetryCollectionStatusCodeEnum.Unavailable,
+                        TelemetryCollectionStatusCodeEnum.Error,
                         false,
                         attemptUtc,
                         durationMs,
-                        null,
+                        "Collection timed out before the section returned a sample.",
                         true);
+                    metricStatus = "timeout";
+                    RigMonitorInstrumentation.SetError(activity, exception);
+                    RigMonitorInstrumentation.RecordError("section." + sectionName, exception);
+                }
+                catch (OperationCanceledException)
+                {
+                    activity?.SetTag(RigMonitorTelemetryNames.LabelOutcome, RigMonitorTelemetryNames.OutcomeCancelled);
+                    throw;
+                }
+                catch (PlatformNotSupportedException exception)
+                {
+                    double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
+                    UpdateTrackedState(
+                        sectionName,
+                        TelemetryCollectionStatusCodeEnum.Unsupported,
+                        false,
+                        attemptUtc,
+                        durationMs,
+                        exception.Message,
+                        false);
+                    supported = false;
+                    metricStatus = "unsupported";
+                    activity?.SetTag(RigMonitorTelemetryNames.LabelErrorType, RigMonitorInstrumentation.GetErrorType(exception));
+                }
+                catch (NotSupportedException exception)
+                {
+                    double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
+                    UpdateTrackedState(
+                        sectionName,
+                        TelemetryCollectionStatusCodeEnum.Unsupported,
+                        false,
+                        attemptUtc,
+                        durationMs,
+                        exception.Message,
+                        false);
+                    supported = false;
+                    metricStatus = "unsupported";
+                    activity?.SetTag(RigMonitorTelemetryNames.LabelErrorType, RigMonitorInstrumentation.GetErrorType(exception));
+                }
+                catch (Exception exception)
+                {
+                    double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
+                    UpdateTrackedState(
+                        sectionName,
+                        TelemetryCollectionStatusCodeEnum.Error,
+                        false,
+                        attemptUtc,
+                        durationMs,
+                        exception.Message,
+                        true);
+                    metricStatus = "error";
+                    RigMonitorInstrumentation.SetError(activity, exception);
+                    RigMonitorInstrumentation.RecordError("section." + sectionName, exception);
+                }
+                finally
+                {
+                    activity?.SetTag(RigMonitorTelemetryNames.LabelSectionStatus, metricStatus);
                 }
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
-                UpdateTrackedState(
-                    sectionName,
-                    TelemetryCollectionStatusCodeEnum.Error,
-                    false,
-                    attemptUtc,
-                    durationMs,
-                    "Collection timed out before the section returned a sample.",
-                    true);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (PlatformNotSupportedException exception)
-            {
-                double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
-                UpdateTrackedState(
-                    sectionName,
-                    TelemetryCollectionStatusCodeEnum.Unsupported,
-                    false,
-                    attemptUtc,
-                    durationMs,
-                    exception.Message,
-                    false);
-                supported = false;
-            }
-            catch (NotSupportedException exception)
-            {
-                double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
-                UpdateTrackedState(
-                    sectionName,
-                    TelemetryCollectionStatusCodeEnum.Unsupported,
-                    false,
-                    attemptUtc,
-                    durationMs,
-                    exception.Message,
-                    false);
-                supported = false;
-            }
-            catch (Exception exception)
-            {
-                double durationMs = _TimeProvider.GetElapsedTime(startTimestamp).TotalMilliseconds;
-                UpdateTrackedState(
-                    sectionName,
-                    TelemetryCollectionStatusCodeEnum.Error,
-                    false,
-                    attemptUtc,
-                    durationMs,
-                    exception.Message,
-                    true);
-            }
 
+            RigMonitorInstrumentation.RecordSection(sectionName, metricStatus, _TimeProvider.GetElapsedTime(startTimestamp).TotalSeconds);
             return BuildResponseStatus(sectionName, true, supported, _TimeProvider.GetUtcNow().UtcDateTime);
         }
 

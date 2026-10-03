@@ -842,3 +842,52 @@ button:disabled {
     font-size: 0.86rem;
   }
 }
+
+/* External services card (Grafana, Prometheus, Tempo, Loki links) */
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.external-services-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mono-token {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.86rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+a.mono-token {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a.mono-token:hover,
+a.mono-token:focus-visible {
+  text-decoration: underline;
+}
+
+.external-services-copy {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.external-services-hint,
+.external-services-footnote {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.external-services-footnote {
+  margin: 0.75rem 0 0;
+}

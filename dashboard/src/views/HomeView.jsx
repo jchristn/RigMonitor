@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { JsonModal } from '../components/JsonModal'
+import { ExternalServicesCard } from '../components/ExternalServicesCard'
 import { RefreshButton } from '../components/RefreshButton'
 import { SectionCard } from '../components/SectionCard'
 import { StatCard } from '../components/StatCard'
@@ -669,6 +670,8 @@ export function HomeView() {
               <SectionPlaceholder message={placeholderMessage(ollamaStatus)} />
             )}
           </SectionCard>
+
+          <ExternalServicesCard className="overview-span-2" />
         </div>
       </div>
 
