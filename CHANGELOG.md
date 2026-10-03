@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1-alpha
+
+- Updated NuGet dependencies: Watson 7.1.1 -> 7.2.2, SyslogLogging 2.2.2 -> 2.3.1, Microsoft.Data.Sqlite 10.0.11 -> 10.0.12, System.Diagnostics.PerformanceCounter 10.0.11 -> 10.0.12, System.Management 10.0.11 -> 10.0.12
+- Updated test dependencies: Touchstone.Core, Touchstone.XunitAdapter, and Touchstone.NunitAdapter 0.1.12 -> 0.2.0, NUnit 4.6.1 -> 5.0.0, NUnit.Analyzers 4.14.0 -> 4.15.0, NUnit3TestAdapter 6.2.0 -> 6.3.0, Microsoft.NET.Test.Sdk 18.9.0 -> 18.10.1, coverlet.collector 10.0.1 -> 10.1.0
+- No code changes were required; RigMonitor does not use Watson access control (whose denials now return 403 instead of 500) or SyslogLogging `DisposeAsync`
+
 ## 0.2.0-alpha
 
 - Added production observability for RigMonitor itself: a `RigMonitor` `Meter` and `ActivitySource` (BCL only, no exporter dependency in `RigMonitor.Core` or `RigMonitor.Telemetry`) covering the snapshot workflow and every section, the background collector (job, queued/collect/persist stages, last success), retention, every outbound integration (DCGM exporter, Ollama, vLLM, Utilyze, SQLite, subprocesses), the SQLite concurrency slot, startup, capabilities, errors by type, build info, and safe configuration gauges

@@ -2,7 +2,7 @@
 
 <img src="assets/icon.png" alt="RigMonitor icon" width="192" height="192" />
 
-Version `0.2.0-alpha`
+Version `0.2.1-alpha`
 
 Note: RigMonitor is currently in `ALPHA`. Expect API, dashboard, configuration, and telemetry surface changes while the project is still stabilizing.
 
