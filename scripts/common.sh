@@ -89,22 +89,26 @@ rm_check_not_sudo() {
 # Prints the first path under the given roots that is not owned by the
 # current user, or nothing.
 rm_first_foreign_path() {
-  local uid
+  local uid depth=()
   uid="$(id -u)"
+  if [ "${RM_SCAN_DEPTH:-}" != "" ]; then depth=(-maxdepth "$RM_SCAN_DEPTH"); fi
   case "$1" in
     /mnt/[a-z]/*)
       if [ -n "${WSL_DISTRO_NAME:-}" ]; then
-        find "$@" ! -writable -print 2>/dev/null | head -n 1 || true
+        find "$@" ${depth[@]+"${depth[@]}"} ! -writable -print 2>/dev/null | head -n 1 || true
         return 0
       fi ;;
   esac
-  find "$@" ! -user "$uid" -print 2>/dev/null | head -n 1 || true
+  find "$@" ${depth[@]+"${depth[@]}"} ! -user "$uid" -print 2>/dev/null | head -n 1 || true
 }
 
 # Fails with a fix-it command when files the scripts need to write belong to
 # another user (typically root, from an earlier run with sudo): the repo's
-# build/runtime output, and the npm and NuGet caches used by the build.
+# build/runtime output and, with "caches", the npm and NuGet caches the build
+# uses. Caches are scanned three levels deep: a sudo run leaves whole package
+# folders root-owned, and a full scan of ~/.nuget/packages takes seconds.
 rm_check_ownership() {
+  local with_caches="${1:-}"
   local p bad example="" fixes=""
   for p in "$RM_ROOT" "$RM_ROOT/dashboard" "$RM_ROOT"/src/*/; do
     if [ -d "$p" ] && [ ! -w "$p" ]; then
@@ -124,8 +128,9 @@ rm_check_ownership() {
     fi
   done
   for p in "${npm_config_cache:-$HOME/.npm}" "${NUGET_PACKAGES:-$HOME/.nuget/packages}" "$HOME/.local/share/NuGet"; do
+    [ "$with_caches" = "caches" ] || break
     [ -e "$p" ] || continue
-    bad="$(rm_first_foreign_path "$p")"
+    bad="$(RM_SCAN_DEPTH=3 rm_first_foreign_path "$p")"
     if [ -n "$bad" ]; then
       [ -n "$example" ] || example="$bad"
       fixes="$fixes $(printf '%q' "$p")"
@@ -140,7 +145,7 @@ rm_check_ownership() {
 }
 
 rm_build() {
-  rm_check_ownership
+  rm_check_ownership caches
   command -v npm >/dev/null 2>&1 || rm_die "npm not found on PATH"
   command -v dotnet >/dev/null 2>&1 || rm_die "dotnet not found on PATH"
 
