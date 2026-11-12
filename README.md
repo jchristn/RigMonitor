@@ -136,6 +136,27 @@ On Linux/macOS:
 
 These scripts install dashboard dependencies, build the latest dashboard bundle, build `RigMonitor.Server`, create `data/logs`, and run the built server with the repository-root `rigmonitor.json`.
 
+### Background Service Scripts
+
+`scripts/<os>/` contains scripts to run RigMonitor in the background and register it to start automatically. Use `windows/` (`.bat`), or `linux/`, `macos/`, `wsl/`, `wsl2/` (`.sh`):
+
+| Script | Purpose |
+|--------|---------|
+| `start` | Builds on first run (or with `--rebuild`), then starts RigMonitor in the background. |
+| `stop` | Stops the running instance. |
+| `install-at-startup` | Registers RigMonitor to start automatically, and starts it now. |
+| `remove-from-startup` | Removes the automatic-start registration. |
+
+Startup mechanisms:
+
+- `windows`: a shortcut in your Startup folder (runs at login, no admin needed).
+- `linux`: a systemd unit at `/etc/systemd/system/rigmonitor.service`, run as the current user (requires `sudo`; starts at boot).
+- `macos`: a LaunchAgent at `~/Library/LaunchAgents/com.rigmonitor.server.plist` (starts at login).
+- `wsl`: a Windows Startup-folder shortcut that runs RigMonitor in the distro at Windows login, keeping the distro alive.
+- `wsl2`: same as `wsl`, but if systemd is enabled in the distro it installs the systemd unit, and the Windows shortcut just keeps the distro running.
+
+The scripts use the repository-root `rigmonitor.json`, build into `.rigmonitor-native/` with the `Release` configuration (override with `RIGMONITOR_CONFIGURATION`), and write background console output to `data/logs/console.log`. On Linux, macOS, and WSL2 with systemd, removing from startup also stops the supervised instance; on Windows and WSL it is left running.
+
 1. Build the dashboard bundle:
 
    ```powershell
