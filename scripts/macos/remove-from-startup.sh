@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../common.sh"
 . "$SCRIPT_DIR/launchd.sh"
 
+rm_launchd_check_ownership
 if rm_launchd_loaded; then
   rm_log "Unloading $RM_LAUNCHD_LABEL"
   launchctl bootout "$RM_LAUNCHD_DOMAIN/$RM_LAUNCHD_LABEL" || true

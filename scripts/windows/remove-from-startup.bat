@@ -2,7 +2,7 @@
 rem Remove RigMonitor from Windows login startup.
 rem A running instance is left running; use stop.bat to stop it.
 setlocal
-call "%~dp0common.bat"
+call "%~dp0common.bat" || exit /b 1
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
   "$lnk = Join-Path ([Environment]::GetFolderPath('Startup')) $env:RM_SHORTCUT_NAME;" ^

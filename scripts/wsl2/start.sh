@@ -12,6 +12,7 @@ if [ "$RM_FOREGROUND" = "1" ]; then
 fi
 
 if rm_systemd_available && rm_systemd_installed; then
+  rm_systemd_check_user
   rm_load_env
   rm_build
   rm_log "Restarting $RM_SYSTEMD_UNIT"

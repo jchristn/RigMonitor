@@ -3,7 +3,7 @@ rem Start RigMonitor when you log in to Windows, and build and start it now.
 rem Adds a shortcut to start.bat in your Startup folder (no admin rights needed),
 rem so it also rebuilds at each login.
 setlocal
-call "%~dp0common.bat"
+call "%~dp0common.bat" require-not-admin || exit /b 1
 
 call "%~dp0start.bat" || exit /b 1
 

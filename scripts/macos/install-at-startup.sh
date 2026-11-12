@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../common.sh"
 . "$SCRIPT_DIR/launchd.sh"
 
+rm_launchd_check_ownership
 rm_build
 rm_write_env_file
 mkdir -p "$RM_LOG_DIR" "$(dirname "$RM_LAUNCHD_PLIST")"
@@ -50,6 +51,7 @@ cat > "$RM_LAUNCHD_PLIST" <<PLIST
 </plist>
 PLIST
 
+chmod 644 "$RM_LAUNCHD_PLIST"  # launchd rejects group/world-writable plists
 plutil -lint "$RM_LAUNCHD_PLIST" >/dev/null
 launchctl bootstrap "$RM_LAUNCHD_DOMAIN" "$RM_LAUNCHD_PLIST"
 rm_log "Installed LaunchAgent: $RM_LAUNCHD_PLIST"

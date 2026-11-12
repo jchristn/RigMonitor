@@ -77,7 +77,70 @@ rm_is_built() {
   [ -f "$RM_SERVER_DLL" ]
 }
 
+# Refuses to run under sudo: builds would leave root-owned files in the repo
+# that later non-root runs (and the service, which runs as you) cannot touch.
+# The scripts call sudo themselves where it is needed.
+rm_check_not_sudo() {
+  if [ "$(id -u)" = "0" ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+    rm_die "do not run this script with sudo; run it as $SUDO_USER (it prompts for sudo only where needed)"
+  fi
+}
+
+# Prints the first path under the given roots that is not owned by the
+# current user, or nothing.
+rm_first_foreign_path() {
+  local uid
+  uid="$(id -u)"
+  case "$1" in
+    /mnt/[a-z]/*)
+      if [ -n "${WSL_DISTRO_NAME:-}" ]; then
+        find "$@" ! -writable -print 2>/dev/null | head -n 1 || true
+        return 0
+      fi ;;
+  esac
+  find "$@" ! -user "$uid" -print 2>/dev/null | head -n 1 || true
+}
+
+# Fails with a fix-it command when files the scripts need to write belong to
+# another user (typically root, from an earlier run with sudo): the repo's
+# build/runtime output, and the npm and NuGet caches used by the build.
+rm_check_ownership() {
+  local p bad example="" fixes=""
+  for p in "$RM_ROOT" "$RM_ROOT/dashboard" "$RM_ROOT"/src/*/; do
+    if [ -d "$p" ] && [ ! -w "$p" ]; then
+      example="$p (not writable)"
+      fixes=" $(printf '%q' "$RM_ROOT")"
+      break
+    fi
+  done
+  [ -z "$fixes" ] && for p in "$RM_ROOT/dashboard/node_modules" "$RM_ROOT/dashboard/dist" "$RM_RUN_DIR" \
+           "$RM_ROOT/data" "$RM_SETTINGS_FILE" "$RM_ROOT"/src/*/bin "$RM_ROOT"/src/*/obj; do
+    [ -e "$p" ] || continue
+    bad="$(rm_first_foreign_path "$p")"
+    if [ -n "$bad" ]; then
+      example="$bad"
+      fixes="$fixes $(printf '%q' "$RM_ROOT")"
+      break
+    fi
+  done
+  for p in "${npm_config_cache:-$HOME/.npm}" "${NUGET_PACKAGES:-$HOME/.nuget/packages}" "$HOME/.local/share/NuGet"; do
+    [ -e "$p" ] || continue
+    bad="$(rm_first_foreign_path "$p")"
+    if [ -n "$bad" ]; then
+      [ -n "$example" ] || example="$bad"
+      fixes="$fixes $(printf '%q' "$p")"
+    fi
+  done
+  [ -n "$fixes" ] || return 0
+  echo "[rigmonitor] ERROR: files needed by the build are not owned by $(id -un), for example:" >&2
+  echo "[rigmonitor]   $example" >&2
+  echo "[rigmonitor] This usually comes from an earlier run with sudo. Fix ownership, then re-run without sudo:" >&2
+  echo "[rigmonitor]   sudo chown -R $(id -un):$(id -gn)$fixes" >&2
+  exit 1
+}
+
 rm_build() {
+  rm_check_ownership
   command -v npm >/dev/null 2>&1 || rm_die "npm not found on PATH"
   command -v dotnet >/dev/null 2>&1 || rm_die "dotnet not found on PATH"
 
@@ -100,12 +163,18 @@ rm_ensure_built() {
   fi
 }
 
+# True if the PID exists, whoever owns it. (kill -0 fails for processes
+# owned by other users, which would hide a root-owned instance.)
+rm_pid_alive() {
+  ps -p "$1" >/dev/null 2>&1
+}
+
 # Prints the PID of the running instance, or nothing.
 rm_running_pid() {
   local pid=""
   if [ -f "$RM_PID_FILE" ]; then
     pid="$(tr -cd '0-9' < "$RM_PID_FILE")"
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    if [ -n "$pid" ] && rm_pid_alive "$pid"; then
       echo "$pid"
       return 0
     fi
@@ -165,7 +234,7 @@ rm_launch_background() {
   local pid=$!
   echo "$pid" > "$RM_PID_FILE"
   sleep 2
-  if ! kill -0 "$pid" 2>/dev/null; then
+  if ! rm_pid_alive "$pid"; then
     rm -f "$RM_PID_FILE"
     rm_die "RigMonitor exited during startup; see $RM_CONSOLE_LOG"
   fi
@@ -177,6 +246,7 @@ rm_launch_background() {
 # Foreground flow for supervisors: build only if missing, then exec.
 rm_start_foreground() {
   rm_load_env
+  rm_check_ownership
   rm_ensure_built
   local pid
   if pid="$(rm_running_pid)"; then
@@ -207,16 +277,23 @@ rm_stop_direct() {
     rm -f "$RM_PID_FILE"
     return 0
   fi
+  local owner
+  owner="$(ps -o uid= -p "$pid" 2>/dev/null | tr -d ' ')"
+  if [ -n "$owner" ] && [ "$owner" != "$(id -u)" ] && [ "$(id -u)" != "0" ]; then
+    rm_die "RigMonitor (PID $pid) is running as $(ps -o user= -p "$pid" | tr -d ' '), not $(id -un); stop it with: sudo kill $pid"
+  fi
   rm_log "Stopping RigMonitor (PID $pid)"
-  kill -TERM "$pid" 2>/dev/null || true
+  kill -TERM "$pid" 2>/dev/null || rm_die "could not signal PID $pid"
   local i=0
-  while kill -0 "$pid" 2>/dev/null && [ $i -lt 30 ]; do
+  while rm_pid_alive "$pid" && [ $i -lt 30 ]; do
     sleep 1
     i=$((i + 1))
   done
-  if kill -0 "$pid" 2>/dev/null; then
+  if rm_pid_alive "$pid"; then
     rm_log "Process did not exit after 30s; sending SIGKILL"
     kill -KILL "$pid" 2>/dev/null || true
+    sleep 1
+    rm_pid_alive "$pid" && rm_die "PID $pid is still running"
   fi
   rm -f "$RM_PID_FILE"
   rm_log "Stopped"
@@ -228,7 +305,15 @@ RM_SYSTEMD_UNIT="rigmonitor.service"
 RM_SYSTEMD_UNIT_FILE="/etc/systemd/system/$RM_SYSTEMD_UNIT"
 
 rm_sudo() {
-  if [ "$(id -u)" = "0" ]; then "$@"; else sudo "$@"; fi
+  if [ "$(id -u)" = "0" ]; then
+    "$@"
+    return
+  fi
+  command -v sudo >/dev/null 2>&1 || rm_die "sudo is required to run: $*"
+  if ! sudo -n true 2>/dev/null; then
+    sudo -v || rm_die "sudo authentication failed; $(id -un) needs sudo rights to manage the systemd unit"
+  fi
+  sudo "$@"
 }
 
 rm_systemd_available() {
@@ -237,6 +322,15 @@ rm_systemd_available() {
 
 rm_systemd_installed() {
   [ -f "$RM_SYSTEMD_UNIT_FILE" ]
+}
+
+# Fails when the installed unit runs as someone other than the current user.
+rm_systemd_check_user() {
+  local unit_user
+  unit_user="$(sed -n 's/^User=//p' "$RM_SYSTEMD_UNIT_FILE" | head -n 1)"
+  if [ -n "$unit_user" ] && [ "$unit_user" != "$(id -un)" ]; then
+    rm_die "$RM_SYSTEMD_UNIT runs as '$unit_user', not $(id -un); re-run install-at-startup.sh as $(id -un) to fix it"
+  fi
 }
 
 # $1 = start script path that systemd should run with --foreground
@@ -392,3 +486,6 @@ if (\$remaining.Count -eq 0 -and (Test-Path -LiteralPath \$launcher)) {
 }
 EOF
 }
+
+# Every script that sources this file refuses to run under sudo.
+rm_check_not_sudo
