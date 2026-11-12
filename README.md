@@ -142,9 +142,9 @@ These scripts install dashboard dependencies, build the latest dashboard bundle,
 
 | Script | Purpose |
 |--------|---------|
-| `start` | Builds on first run (or with `--rebuild`), then starts RigMonitor in the background. |
+| `start` | Builds the dashboard and server, then starts RigMonitor in the background, restarting a running instance on the new build. |
 | `stop` | Stops the running instance. |
-| `install-at-startup` | Registers RigMonitor to start automatically, and starts it now. |
+| `install-at-startup` | Builds, registers RigMonitor to start automatically, and starts it now. |
 | `remove-from-startup` | Removes the automatic-start registration. |
 
 Startup mechanisms:
@@ -154,6 +154,8 @@ Startup mechanisms:
 - `macos`: a LaunchAgent at `~/Library/LaunchAgents/com.rigmonitor.server.plist` (starts at login).
 - `wsl`: a Windows Startup-folder shortcut that runs RigMonitor in the distro at Windows login, keeping the distro alive.
 - `wsl2`: same as `wsl`, but if systemd is enabled in the distro it installs the systemd unit, and the Windows shortcut just keeps the distro running.
+
+`start` and `install-at-startup` build every time they run. On Linux, macOS, and WSL the build runs before the running instance is restarted, so a failed build leaves it running. On Windows, RigMonitor is stopped before the build because its files are locked while it runs, so a failed build leaves it stopped. The Windows startup shortcut runs `start.bat`, so it also rebuilds at each login. The boot-time launchers on the other platforms (systemd, launchd, and the WSL shortcut) only build if no build exists, so restarts after a crash or reboot are fast.
 
 The scripts use the repository-root `rigmonitor.json`, build into `.rigmonitor-native/` with the `Release` configuration (override with `RIGMONITOR_CONFIGURATION`), and write background console output to `data/logs/console.log`. On Linux, macOS, and WSL2 with systemd, removing from startup also stops the supervised instance; on Windows and WSL it is left running.
 

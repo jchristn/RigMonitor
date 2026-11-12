@@ -5,8 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../common.sh"
 . "$SCRIPT_DIR/launchd.sh"
 
-RM_REBUILD=0
-rm_ensure_built
+rm_build
 rm_write_env_file
 mkdir -p "$RM_LOG_DIR" "$(dirname "$RM_LAUNCHD_PLIST")"
 

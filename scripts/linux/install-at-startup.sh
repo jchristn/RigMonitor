@@ -6,8 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 rm_systemd_available || rm_die "systemd is not running on this host"
 
-RM_REBUILD=0
-rm_ensure_built
+rm_build
 rm_write_env_file
 
 if pid="$(rm_running_pid)" && ! systemctl is-active --quiet "$RM_SYSTEMD_UNIT" 2>/dev/null; then

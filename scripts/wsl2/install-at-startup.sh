@@ -10,8 +10,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../common.sh"
 
 rm_require_wsl
-RM_REBUILD=0
-rm_ensure_built
+rm_build
 rm_write_env_file
 
 if pid="$(rm_running_pid)" && ! { rm_systemd_available && systemctl is-active --quiet "$RM_SYSTEMD_UNIT" 2>/dev/null; }; then

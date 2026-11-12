@@ -24,24 +24,22 @@ rm_die() { echo "[rigmonitor] ERROR: $*" >&2; exit 1; }
 
 rm_start_usage() {
   cat <<EOF
-Usage: $(basename "$0") [--rebuild] [--foreground] [--build-only]
+Usage: $(basename "$0") [--foreground]
 
-  --rebuild      Rebuild the dashboard and server even if a build exists.
-  --foreground   Run in the foreground (used by systemd/launchd/startup tasks).
-  --build-only   Build and exit without starting.
+Builds the dashboard and server, then starts RigMonitor in the background.
+If it is already running, it is restarted on the new build.
+
+  --foreground   Run in the foreground without rebuilding (builds only if no
+                 build exists). Used by systemd/launchd/startup launchers.
 EOF
 }
 
-# Parses start arguments into RM_REBUILD, RM_FOREGROUND, RM_BUILD_ONLY.
+# Parses start arguments into RM_FOREGROUND.
 rm_parse_start_args() {
-  RM_REBUILD=0
   RM_FOREGROUND=0
-  RM_BUILD_ONLY=0
   while [ $# -gt 0 ]; do
     case "$1" in
-      --rebuild) RM_REBUILD=1 ;;
       --foreground) RM_FOREGROUND=1 ;;
-      --build-only) RM_BUILD_ONLY=1 ;;
       -h|--help) rm_start_usage; exit 0 ;;
       *) rm_start_usage >&2; exit 2 ;;
     esac
@@ -95,8 +93,9 @@ rm_build() {
   dotnet build "$RM_SERVER_PROJECT" -c "$RM_CONFIGURATION" -o "$RM_RUN_DIR" || rm_die "server build failed"
 }
 
+# Builds only when no build exists (supervised/boot-time path).
 rm_ensure_built() {
-  if [ "${RM_REBUILD:-0}" = "1" ] || ! rm_is_built; then
+  if ! rm_is_built; then
     rm_build
   fi
 }
@@ -175,22 +174,27 @@ rm_launch_background() {
   rm_print_urls
 }
 
-# Standard start flow for an unsupervised instance.
-rm_start_direct() {
+# Foreground flow for supervisors: build only if missing, then exec.
+rm_start_foreground() {
   rm_load_env
   rm_ensure_built
-  [ "$RM_BUILD_ONLY" = "1" ] && { rm_log "Build complete"; return 0; }
-
   local pid
   if pid="$(rm_running_pid)"; then
     rm_log "RigMonitor is already running (PID $pid)"
-    [ "$RM_FOREGROUND" = "1" ] && exit 0
-    rm_print_urls
-    return 0
+    exit 0
   fi
+  rm_exec_foreground
+}
 
-  if [ "$RM_FOREGROUND" = "1" ]; then
-    rm_exec_foreground
+# Unsupervised start: always build, then start, restarting any running
+# instance so it picks up the new build. The build runs first, so a failed
+# build leaves the running instance untouched.
+rm_start_direct() {
+  rm_load_env
+  rm_build
+  if rm_running_pid >/dev/null; then
+    rm_log "Restarting on the new build"
+    rm_stop_direct
   fi
   rm_launch_background
 }
@@ -346,6 +350,26 @@ if ($start_now) {
     Start-Process -FilePath \$lnk
     Write-Output '[rigmonitor] Launched startup shortcut'
 }
+EOF
+}
+
+rm_windows_startup_installed() {
+  local out
+  out="$(rm_run_powershell <<EOF
+\$lnk = Join-Path ([Environment]::GetFolderPath('Startup')) ('RigMonitor (WSL ' + $(rm_ps_quote "$WSL_DISTRO_NAME") + ').lnk')
+if (Test-Path -LiteralPath \$lnk) { 'yes' } else { 'no' }
+EOF
+)" || return 1
+  [ "$out" = "yes" ]
+}
+
+# Launches the installed Windows startup shortcut for this distro now.
+rm_windows_startup_launch() {
+  rm_run_powershell <<EOF
+\$ErrorActionPreference = 'Stop'
+\$lnk = Join-Path ([Environment]::GetFolderPath('Startup')) ('RigMonitor (WSL ' + $(rm_ps_quote "$WSL_DISTRO_NAME") + ').lnk')
+Start-Process -FilePath \$lnk
+Write-Output '[rigmonitor] Launched Windows startup shortcut'
 EOF
 }
 
