@@ -1,9 +1,10 @@
 namespace RigMonitor.Core.Models
 {
     using System;
+    using System.Text.Json.Serialization;
 
     /// <summary>
-    /// GPU utilization metrics.
+    /// GPU metrics common to every vendor. Optional metrics are null when the source cannot provide them.
     /// </summary>
     public class GpuUtilizationTelemetry
     {
@@ -23,7 +24,7 @@ namespace RigMonitor.Core.Models
         }
 
         /// <summary>
-        /// Used framebuffer memory in megabytes.
+        /// Used GPU memory in megabytes.
         /// </summary>
         public double MemoryUsedMegabytes
         {
@@ -38,7 +39,7 @@ namespace RigMonitor.Core.Models
         }
 
         /// <summary>
-        /// Free framebuffer memory in megabytes.
+        /// Free GPU memory in megabytes.
         /// </summary>
         public double MemoryFreeMegabytes
         {
@@ -53,7 +54,7 @@ namespace RigMonitor.Core.Models
         }
 
         /// <summary>
-        /// Total framebuffer memory in megabytes.
+        /// Total GPU memory in megabytes.
         /// </summary>
         public double MemoryTotalMegabytes
         {
@@ -73,7 +74,19 @@ namespace RigMonitor.Core.Models
         }
 
         /// <summary>
-        /// Framebuffer memory utilization percentage.
+        /// Whether a total was set explicitly rather than derived from used plus free.
+        /// </summary>
+        [JsonIgnore]
+        public bool HasReportedMemoryTotal
+        {
+            get
+            {
+                return _MemoryTotalMegabytes > 0D || _MemoryFreeMegabytes > 0D;
+            }
+        }
+
+        /// <summary>
+        /// GPU memory utilization percentage.
         /// </summary>
         public double MemoryUtilizationPercent
         {
@@ -100,9 +113,9 @@ namespace RigMonitor.Core.Models
         public bool? MemoryShared { get; set; } = null;
 
         /// <summary>
-        /// GPU temperature in Celsius.
+        /// GPU temperature in Celsius, or null when not reported.
         /// </summary>
-        public double TemperatureCelsius
+        public double? TemperatureCelsius
         {
             get
             {
@@ -110,14 +123,14 @@ namespace RigMonitor.Core.Models
             }
             set
             {
-                _TemperatureCelsius = Math.Max(0D, value);
+                _TemperatureCelsius = GpuMetricMath.NonNegative(value);
             }
         }
 
         /// <summary>
-        /// Power draw in watts.
+        /// Power draw in watts, or null when not reported.
         /// </summary>
-        public double PowerUsageWatts
+        public double? PowerUsageWatts
         {
             get
             {
@@ -125,14 +138,14 @@ namespace RigMonitor.Core.Models
             }
             set
             {
-                _PowerUsageWatts = Math.Max(0D, value);
+                _PowerUsageWatts = GpuMetricMath.NonNegative(value);
             }
         }
 
         /// <summary>
-        /// SM clock in MHz.
+        /// Primary compute clock in MHz (NVIDIA SM clock, AMD sclk, Apple and Qualcomm active frequency), or null.
         /// </summary>
-        public double SmClockMHz
+        public double? SmClockMHz
         {
             get
             {
@@ -140,14 +153,14 @@ namespace RigMonitor.Core.Models
             }
             set
             {
-                _SmClockMHz = Math.Max(0D, value);
+                _SmClockMHz = GpuMetricMath.NonNegative(value);
             }
         }
 
         /// <summary>
-        /// Memory clock in MHz.
+        /// Memory clock in MHz, or null when not reported.
         /// </summary>
-        public double MemoryClockMHz
+        public double? MemoryClockMHz
         {
             get
             {
@@ -155,22 +168,7 @@ namespace RigMonitor.Core.Models
             }
             set
             {
-                _MemoryClockMHz = Math.Max(0D, value);
-            }
-        }
-
-        /// <summary>
-        /// XID errors observed on the device.
-        /// </summary>
-        public long XidErrors
-        {
-            get
-            {
-                return _XidErrors;
-            }
-            set
-            {
-                _XidErrors = Math.Max(0L, value);
+                _MemoryClockMHz = GpuMetricMath.NonNegative(value);
             }
         }
 
@@ -178,10 +176,9 @@ namespace RigMonitor.Core.Models
         private double _MemoryUsedMegabytes = 0D;
         private double _MemoryFreeMegabytes = 0D;
         private double _MemoryTotalMegabytes = 0D;
-        private double _TemperatureCelsius = 0D;
-        private double _PowerUsageWatts = 0D;
-        private double _SmClockMHz = 0D;
-        private double _MemoryClockMHz = 0D;
-        private long _XidErrors = 0L;
+        private double? _TemperatureCelsius = null;
+        private double? _PowerUsageWatts = null;
+        private double? _SmClockMHz = null;
+        private double? _MemoryClockMHz = null;
     }
 }

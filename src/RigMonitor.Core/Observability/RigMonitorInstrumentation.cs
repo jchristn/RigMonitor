@@ -104,6 +104,9 @@ namespace RigMonitor.Core.Observability
 
         private static readonly ConcurrentDictionary<string, double> _SectionLastSuccess = new ConcurrentDictionary<string, double>(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<string, int> _Capabilities = new ConcurrentDictionary<string, int>(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, int> _GpuNativeFeatures = new ConcurrentDictionary<string, int>(StringComparer.Ordinal);
+        private static readonly Counter<long> _GpuNativeErrors = _Meter.CreateCounter<long>(
+            RigMonitorTelemetryNames.GpuNativeErrors, "{error}", "Native GPU collection errors by vendor and feature.");
         private static readonly object _ConfigurationLock = new object();
         private static double _CollectorLastSuccess = 0D;
         private static double _RetentionLastSuccess = 0D;
@@ -131,6 +134,8 @@ namespace RigMonitor.Core.Observability
                 RigMonitorTelemetryNames.UtilyzeConnected, ObserveUtilyzeConnected, "1", "Whether the Utilyze live WebSocket is connected (1) or not (0).");
             _Meter.CreateObservableGauge<int>(
                 RigMonitorTelemetryNames.CapabilityAvailable, ObserveCapabilities, "1", "Whether a runtime capability was detected at startup (1) or not (0).");
+            _Meter.CreateObservableGauge<int>(
+                RigMonitorTelemetryNames.GpuNativeFeatureAvailable, ObserveGpuNativeFeatures, "1", "Whether a native GPU feature loaded (1) or not (0).");
             _Meter.CreateObservableGauge<int>(
                 RigMonitorTelemetryNames.TelemetryWarm, ObserveTelemetryWarm, "1", "Whether telemetry samplers are warm (1) or not (0).");
             _Meter.CreateObservableGauge<int>(
@@ -634,6 +639,41 @@ namespace RigMonitor.Core.Observability
         }
 
         /// <summary>
+        /// Set a native GPU feature availability flag.
+        /// </summary>
+        /// <param name="feature">Feature name from the fixed feature set.</param>
+        /// <param name="available">True when the feature loaded.</param>
+        public static void SetGpuNativeFeature(string feature, bool available)
+        {
+            try
+            {
+                _GpuNativeFeatures[feature] = available ? 1 : 0;
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        /// <summary>
+        /// Record a native GPU collection error.
+        /// </summary>
+        /// <param name="vendor">Vendor (nvidia, amd, apple, qualcomm).</param>
+        /// <param name="feature">Feature name from the fixed feature set.</param>
+        public static void RecordGpuNativeError(string vendor, string feature)
+        {
+            try
+            {
+                _GpuNativeErrors.Add(
+                    1,
+                    new KeyValuePair<string, object?>(RigMonitorTelemetryNames.LabelGpuVendor, vendor),
+                    new KeyValuePair<string, object?>(RigMonitorTelemetryNames.LabelGpuFeature, feature));
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        /// <summary>
         /// Set the telemetry warm state.
         /// </summary>
         /// <param name="warm">True when warm.</param>
@@ -756,6 +796,17 @@ namespace RigMonitor.Core.Observability
             int value = Volatile.Read(ref _TelemetryWarm);
             if (value < 0) return Array.Empty<Measurement<int>>();
             return new Measurement<int>[] { new Measurement<int>(value) };
+        }
+
+        private static IEnumerable<Measurement<int>> ObserveGpuNativeFeatures()
+        {
+            List<Measurement<int>> measurements = new List<Measurement<int>>();
+            foreach (KeyValuePair<string, int> pair in _GpuNativeFeatures)
+            {
+                measurements.Add(new Measurement<int>(pair.Value, new KeyValuePair<string, object?>(RigMonitorTelemetryNames.LabelGpuFeature, pair.Key)));
+            }
+
+            return measurements;
         }
 
         private static IEnumerable<Measurement<int>> ObserveCapabilities()

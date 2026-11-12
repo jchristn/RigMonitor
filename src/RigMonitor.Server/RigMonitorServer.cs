@@ -16,6 +16,7 @@ namespace RigMonitor.Server
     using RigMonitor.Server.Dashboard;
     using RigMonitor.Server.Routes;
     using RigMonitor.Server.Services;
+    using RigMonitor.Telemetry.Gpu;
     using RigMonitor.Telemetry.Platform.Shared;
     using RigMonitor.Telemetry.Services;
     using WatsonWebserver;
@@ -46,6 +47,7 @@ namespace RigMonitor.Server
         private readonly TelemetryPersistenceService _TelemetryPersistenceService;
         private readonly StaticFileHandler _StaticFileHandler;
         private readonly ObservabilityService _Observability;
+        private readonly GpuProviderSet _GpuProviders;
         private int _Started = 0;
 
         private RigMonitorServer(
@@ -56,7 +58,8 @@ namespace RigMonitor.Server
             IRuntimeCapabilitiesService runtimeCapabilitiesService,
             TelemetryPersistenceService telemetryPersistenceService,
             StaticFileHandler staticFileHandler,
-            ObservabilityService observability)
+            ObservabilityService observability,
+            GpuProviderSet gpuProviders)
         {
             Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _Logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -66,6 +69,7 @@ namespace RigMonitor.Server
             _TelemetryPersistenceService = telemetryPersistenceService ?? throw new ArgumentNullException(nameof(telemetryPersistenceService));
             _StaticFileHandler = staticFileHandler ?? throw new ArgumentNullException(nameof(staticFileHandler));
             _Observability = observability ?? throw new ArgumentNullException(nameof(observability));
+            _GpuProviders = gpuProviders ?? throw new ArgumentNullException(nameof(gpuProviders));
 
             CoreWebserverSettings webserverSettings = new CoreWebserverSettings(Settings.Webserver.Hostname, Settings.Webserver.Port, Settings.Webserver.Ssl);
 
@@ -114,30 +118,37 @@ namespace RigMonitor.Server
                 try
                 {
                     IDcgmExporterClient dcgmClient = new DcgmExporterClient(settings.Telemetry);
+                    GpuProviderSet gpuProviders = GpuProviderSet.Create(settings.Telemetry, dcgmClient);
                     IOllamaClient ollamaClient = new OllamaClient(settings.Telemetry);
                     IVllmTelemetryProvider vllmTelemetryProvider = new VllmTelemetryProvider(settings.Telemetry);
                     IUtilyzeTelemetryProvider utilyzeTelemetryProvider = new UtilyzeTelemetryProvider(settings.Telemetry);
                     IRuntimeCapabilitiesService runtimeCapabilitiesService = new RuntimeCapabilitiesService(
                         settings.Telemetry,
                         settings.Dashboard.Enabled,
-                        dcgmClient,
+                        gpuProviders.Nvidia,
+                        gpuProviders.Amd,
+                        gpuProviders.Apple,
+                        gpuProviders.Qualcomm,
                         ollamaClient,
                         vllmTelemetryProvider,
-                        utilyzeTelemetryProvider);
+                        utilyzeTelemetryProvider,
+                        settings.Dashboard.HideUnsupportedGpuSections);
 
                     await runtimeCapabilitiesService.InitializeAsync(cancellationToken).ConfigureAwait(false);
 
                     ISystemTelemetryProvider systemTelemetryProvider = SystemTelemetryProviderFactory.Create();
                     IMemoryInfoProvider memoryInfoProvider = new DefaultMemoryInfoProvider();
                     INetworkRateSampler networkRateSampler = new DefaultNetworkRateSampler();
-                    IGpuTelemetryProvider gpuTelemetryProvider = new NvidiaDcgmGpuTelemetryProvider(settings.Telemetry, dcgmClient);
                     ITelemetryService telemetryService = new TelemetryService(
                         settings.Telemetry,
                         systemTelemetryProvider,
                         memoryInfoProvider,
                         networkRateSampler,
                         runtimeCapabilitiesService,
-                        gpuTelemetryProvider,
+                        gpuProviders.Nvidia,
+                        gpuProviders.Amd,
+                        gpuProviders.Apple,
+                        gpuProviders.Qualcomm,
                         ollamaClient,
                         vllmTelemetryProvider,
                         utilyzeTelemetryProvider);
@@ -162,14 +173,22 @@ namespace RigMonitor.Server
                         runtimeCapabilitiesService,
                         telemetryPersistenceService,
                         staticFileHandler,
-                        observability);
+                        observability,
+                        gpuProviders);
 
                     logger.Debug("Startup initialization complete.");
                     logger.Info("Settings loaded from " + settingsFile);
                     logger.Info("Telemetry persistence database: " + settings.Persistence.Database.Type + " " + settings.Persistence.Database.Filename);
                     logger.Info("Telemetry persistence hostname: " + settings.Persistence.Hostname);
                     logger.Info("Runtime platform: " + runtimeCapabilitiesService.Current.HostPlatform);
-                    logger.Info("DCGM available: " + runtimeCapabilitiesService.Current.NvidiaAvailable);
+                    foreach (GpuProbeResult probe in runtimeCapabilitiesService.Current.GpuProviders)
+                    {
+                        string detail = probe.Available
+                            ? "true (source: " + (probe.Source?.ToString() ?? "unknown") + (String.IsNullOrWhiteSpace(probe.Detail) ? String.Empty : ", " + probe.Detail) + (probe.Features.Count > 0 ? ", features: " + String.Join(", ", probe.Features) : String.Empty) + ")"
+                            : "false" + (String.IsNullOrWhiteSpace(probe.Detail) ? String.Empty : " (" + probe.Detail + ")");
+                        logger.Info(GpuVendorDisplayName(probe.Vendor) + " GPU available: " + detail);
+                    }
+
                     logger.Info("Ollama available: " + runtimeCapabilitiesService.Current.OllamaAvailable);
                     logger.Info("vLLM available: " + runtimeCapabilitiesService.Current.VllmAvailable);
                     logger.Info("Utilyze available: " + runtimeCapabilitiesService.Current.UtilyzeAvailable);
@@ -246,6 +265,7 @@ namespace RigMonitor.Server
 
             _TelemetryPersistenceService.Dispose();
             _Database.Dispose();
+            _GpuProviders.Dispose();
 
             _Logger.Info("RigMonitor stopped");
             _Logger.Debug("Shutdown sequence complete.");
@@ -253,6 +273,19 @@ namespace RigMonitor.Server
             // Last, so shutdown spans, metrics, and log lines above are flushed.
             _Logger.AttachSink(null);
             _Observability.Dispose();
+        }
+
+        private static string GpuVendorDisplayName(RigMonitor.Core.Enums.GpuVendorEnum vendor)
+        {
+            switch (vendor)
+            {
+                case RigMonitor.Core.Enums.GpuVendorEnum.Nvidia:
+                    return "NVIDIA";
+                case RigMonitor.Core.Enums.GpuVendorEnum.Amd:
+                    return "AMD";
+                default:
+                    return vendor.ToString();
+            }
         }
 
         private void ConfigureServer()

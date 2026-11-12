@@ -27,7 +27,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "One-glance health of this RigMonitor process. Drill into **HTTP** (slow or failing endpoints), **Snapshots & Sections** (which telemetry section is slow or failing), **Collector & Retention** (background persistence pipeline), **Integrations** (DCGM, Ollama, vLLM, Utilyze, SQLite, subprocesses), and **Runtime** (.NET process). Traces are in Tempo (service `rigmonitor`), logs in Loki (`{service_name=\"rigmonitor\"}`)."
+        "content": "One-glance health of this RigMonitor process. Drill into **HTTP** (slow or failing endpoints), **Snapshots & Sections** (which telemetry section is slow or failing), **Collector & Retention** (background persistence pipeline), **Integrations** (DCGM, native GPU sources, Ollama, vLLM, Utilyze, SQLite, subprocesses), and **Runtime** (.NET process). Traces are in Tempo (service `rigmonitor`), logs in Loki (`{service_name=\"rigmonitor\"}`)."
       }
     },
     {

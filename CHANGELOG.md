@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0-alpha
+
+- Added AMD, Apple, and Qualcomm GPU telemetry alongside NVIDIA, each in its own `/v1/telemetry` section (`nvidia`, `amd`, `apple`, `qualcomm`) with its own selector key and collection status; `gpu` is now a vendor-neutral aggregate derived from them, and vendor sections are collected in parallel
+- AMD: in-process ROCm AMD SMI library (`libamd_smi.so`) with per-field gap-fill from `amdgpu` sysfs matched by PCI address, sysfs-only fallback for hosts without ROCm, and the AMD Device Metrics Exporter as a last resort; reports activity, VRAM, GTT, edge/hotspot/memory temperatures, power, clocks, ECC, and partitions; APUs (Ryzen AI Max, MI300A, ...) combine VRAM and GTT
+- Apple: in-process IOKit, Metal, Foundation, IOReport, and IOHID (no `sudo`, no helper processes) for device/renderer/tiler utilization, unified memory in use, Metal's recommended working set, GPU power, active frequency and residency, temperature (GPU sensors, else SoC die sensors), and thermal state; IOReport and IOHID are sampled in the background
+- Qualcomm: Windows on Snapdragon through DXGI, PDH, and D3DKMT (also used for AMD adapters on Windows), and Linux through `drm/msm` (devfreq, fdinfo, thermal zones) or `kgsl`, with an explicit `utilizationScope`
+- Added `Telemetry.NvidiaEnabled`, `AmdEnabled`, `AmdSource`, `AmdSmiLibraryPath`, `AmdSysfsGapFillEnabled`, `AmdSysfsRoot`, `AmdMetricsExporterUrl`, `AppleGpuEnabled`, `AppleIOReportEnabled`, `AppleHidSensorsEnabled`, `AppleSamplerIntervalMs`, `QualcommEnabled`, `QualcommSource`, `QualcommSysfsRoot`, `QualcommProcRoot`, `WindowsGenericGpuEnabled`, `WindowsGpuSamplerIntervalMs`, and `Dashboard.HideUnsupportedGpuSections`
+- `/v1/capabilities` adds `amdAvailable`, `appleGpuAvailable`, `qualcommAvailable`, `gpuAvailable`, `amdSource`, `qualcommSource`, `appleFeatures`, `gpuProviders` (probe result and reason per vendor), `amdMetricsExporterUrl`, and `hideUnsupportedGpuSections`
+- Telemetry history stores vendor, source, and vendor-specific GPU columns; search adds `gpuVendor`, `amdAvailable`, `appleGpuAvailable`, and `qualcommAvailable`; roll-ups add a `gpuVendor` filter and a per-vendor `gpuVendors` breakdown aggregated per sample then per bucket; existing databases migrate in place and existing GPU rows are tagged `nvidia`
+- Dashboard: NVIDIA, AMD, Apple, and Qualcomm sections with vendor-specific columns, expandable device details, a unified memory bar, setup-guide links, and a "Show unsupported GPU vendors" toggle; per-vendor capability pills and GPU utilization/power cards; analytics charts draw one series per vendor with a legend, add vendor-only charts (AMD hotspot and GTT, Apple working set and thermal state, Qualcomm memory budget), vendor filters, and a vendor column; all nine locales updated
+- Added a Vitest test harness for the dashboard, including a locale key-parity test
+- Added native GPU observability: `rigmonitor.gpu.native.feature.available`, `rigmonitor.gpu.native.errors`, integration spans for each GPU source, and `stage:<vendor>` spans under `stage:gpu`
+- Added `INSTALLING_AMD_GPU_TELEMETRY.md`, `APPLE_GPU_TELEMETRY.md`, and `QUALCOMM_GPU_TELEMETRY.md`; the Linux systemd unit now sets `SupplementaryGroups=render video` and, when ROCm is installed, `LD_LIBRARY_PATH=/opt/rocm/lib`
+- Fixed SQLite query results whose aggregate columns were typed as `byte[]` when the first row was null
+- Breaking: `gpu.vendor` is now a camelCase enum (`nvidia`, `amd`, `apple`, `qualcomm`, `mixed`) instead of `"NVIDIA"`; `gpu.exporterEndpoint` moved to `nvidia.endpoint`; `xidErrors` and `migProfile` moved to `nvidia.devices[]`; `temperatureCelsius`, `powerUsageWatts`, `smClockMHz`, and `memoryClockMHz` are omitted when unknown instead of `0`; history and roll-up GPU power and temperature are `null` when no device reported them; `IGpuTelemetryProvider` was replaced by per-vendor provider interfaces. Snapshots stored by earlier versions still load.
+
 ## 0.2.1-alpha
 
 - Updated NuGet dependencies: Watson 7.1.1 -> 7.2.2, SyslogLogging 2.2.2 -> 2.3.1, Microsoft.Data.Sqlite 10.0.11 -> 10.0.12, System.Diagnostics.PerformanceCounter 10.0.11 -> 10.0.12, System.Management 10.0.11 -> 10.0.12

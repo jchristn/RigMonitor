@@ -39,6 +39,21 @@ namespace RigMonitor.Core.Models
         public bool NvidiaAvailable { get; set; } = false;
 
         /// <summary>
+        /// Whether AMD GPU telemetry was available.
+        /// </summary>
+        public bool AmdAvailable { get; set; } = false;
+
+        /// <summary>
+        /// Whether Apple GPU telemetry was available.
+        /// </summary>
+        public bool AppleGpuAvailable { get; set; } = false;
+
+        /// <summary>
+        /// Whether Qualcomm GPU telemetry was available.
+        /// </summary>
+        public bool QualcommAvailable { get; set; } = false;
+
+        /// <summary>
         /// Whether Ollama telemetry was available.
         /// </summary>
         public bool OllamaAvailable { get; set; } = false;
@@ -117,6 +132,11 @@ namespace RigMonitor.Core.Models
         /// GPU device count.
         /// </summary>
         public int? GpuDeviceCount { get; set; } = null;
+
+        /// <summary>
+        /// GPU vendor present in the sample, or mixed.
+        /// </summary>
+        public GpuVendorEnum? GpuVendor { get; set; } = null;
 
         /// <summary>
         /// Average GPU utilization percentage across devices.

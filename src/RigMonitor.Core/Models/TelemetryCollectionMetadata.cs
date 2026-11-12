@@ -58,6 +58,26 @@ namespace RigMonitor.Core.Models
         public TelemetrySectionCollectionStatus Gpu { get; set; } = new TelemetrySectionCollectionStatus();
 
         /// <summary>
+        /// NVIDIA GPU section status.
+        /// </summary>
+        public TelemetrySectionCollectionStatus Nvidia { get; set; } = new TelemetrySectionCollectionStatus();
+
+        /// <summary>
+        /// AMD GPU section status.
+        /// </summary>
+        public TelemetrySectionCollectionStatus Amd { get; set; } = new TelemetrySectionCollectionStatus();
+
+        /// <summary>
+        /// Apple GPU section status.
+        /// </summary>
+        public TelemetrySectionCollectionStatus Apple { get; set; } = new TelemetrySectionCollectionStatus();
+
+        /// <summary>
+        /// Qualcomm GPU section status.
+        /// </summary>
+        public TelemetrySectionCollectionStatus Qualcomm { get; set; } = new TelemetrySectionCollectionStatus();
+
+        /// <summary>
         /// Ollama section metadata.
         /// </summary>
         public TelemetrySectionCollectionStatus Ollama { get; set; } = new TelemetrySectionCollectionStatus();

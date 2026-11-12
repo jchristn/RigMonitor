@@ -33,6 +33,11 @@ namespace RigMonitor.Core.Settings
             }
         }
 
+        /// <summary>
+        /// Whether the dashboard hides GPU vendor sections the host does not support (viewers can override this per browser).
+        /// </summary>
+        public bool HideUnsupportedGpuSections { get; set; } = false;
+
         private int _AutoRefreshIntervalMs = 5000;
     }
 }

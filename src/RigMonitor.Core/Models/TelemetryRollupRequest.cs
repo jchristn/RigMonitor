@@ -1,6 +1,7 @@
 namespace RigMonitor.Core.Models
 {
     using System;
+    using RigMonitor.Core.Enums;
 
     /// <summary>
     /// Request for bucketized telemetry roll-up data.
@@ -41,6 +42,16 @@ namespace RigMonitor.Core.Models
         /// Optional GPU UUID filter.
         /// </summary>
         public string? GpuUuid { get; set; } = null;
+
+        /// <summary>
+        /// Optional GPU vendor filter. When set, bucket GPU averages are computed from that vendor's devices only.
+        /// </summary>
+        public GpuVendorEnum? GpuVendor { get; set; } = null;
+
+        /// <summary>
+        /// Whether each bucket includes a per-vendor GPU breakdown.
+        /// </summary>
+        public bool IncludeGpuVendorBreakdown { get; set; } = true;
 
         /// <summary>
         /// Whether empty buckets should be included. Default is true.

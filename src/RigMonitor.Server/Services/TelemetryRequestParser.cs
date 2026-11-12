@@ -17,6 +17,10 @@ namespace RigMonitor.Server.Services
             "network",
             "disk",
             "gpu",
+            "nvidia",
+            "amd",
+            "apple",
+            "qualcomm",
             "ollama",
             "vllm",
             "utilyze"
@@ -72,6 +76,10 @@ namespace RigMonitor.Server.Services
             options.IncludeNetwork = ReadValue(selectors, "network");
             options.IncludeDisk = ReadValue(selectors, "disk");
             options.IncludeGpu = ReadValue(selectors, "gpu");
+            options.IncludeNvidia = ReadValue(selectors, "nvidia");
+            options.IncludeAmd = ReadValue(selectors, "amd");
+            options.IncludeApple = ReadValue(selectors, "apple");
+            options.IncludeQualcomm = ReadValue(selectors, "qualcomm");
             options.IncludeOllama = ReadValue(selectors, "ollama");
             options.IncludeVllm = ReadValue(selectors, "vllm");
             options.IncludeUtilyze = ReadValue(selectors, "utilyze");

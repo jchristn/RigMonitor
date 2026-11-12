@@ -22,6 +22,10 @@ namespace RigMonitor.Core.Database.Sqlite.Queries
                     ollamaavailable INTEGER NOT NULL,
                     vllmavailable INTEGER NOT NULL,
                     utilyzeavailable INTEGER NOT NULL,
+                    amdavailable INTEGER NOT NULL DEFAULT 0,
+                    applegpuavailable INTEGER NOT NULL DEFAULT 0,
+                    qualcommavailable INTEGER NOT NULL DEFAULT 0,
+                    gpuvendor TEXT,
                     cpuutilizationpercent REAL,
                     logicalcorecount INTEGER,
                     memorytotalbytes INTEGER,
@@ -69,6 +73,21 @@ namespace RigMonitor.Core.Database.Sqlite.Queries
                     smclockmhz REAL,
                     memoryclockmhz REAL,
                     xiderrors INTEGER,
+                    vendor TEXT,
+                    source TEXT,
+                    ordinal INTEGER,
+                    unifiedmemory INTEGER,
+                    hotspottemperaturecelsius REAL,
+                    memorytemperaturecelsius REAL,
+                    gttusedmegabytes REAL,
+                    gtttotalmegabytes REAL,
+                    uncorrectableeccerrors INTEGER,
+                    partitionid TEXT,
+                    thermalstate INTEGER,
+                    workingsetmegabytes REAL,
+                    memorybudgetmegabytes REAL,
+                    utilizationscope TEXT,
+                    vendordetailjson TEXT,
                     FOREIGN KEY (sampleid) REFERENCES telemetry_samples(id) ON DELETE CASCADE
                 );
 
@@ -93,7 +112,30 @@ namespace RigMonitor.Core.Database.Sqlite.Queries
             return new string[]
             {
                 "ALTER TABLE telemetry_samples ADD COLUMN hostname TEXT NOT NULL DEFAULT 'localhost';",
-                "ALTER TABLE telemetry_gpu_samples ADD COLUMN hostname TEXT NOT NULL DEFAULT 'localhost';"
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN hostname TEXT NOT NULL DEFAULT 'localhost';",
+                "ALTER TABLE telemetry_samples ADD COLUMN amdavailable INTEGER NOT NULL DEFAULT 0;",
+                "ALTER TABLE telemetry_samples ADD COLUMN applegpuavailable INTEGER NOT NULL DEFAULT 0;",
+                "ALTER TABLE telemetry_samples ADD COLUMN qualcommavailable INTEGER NOT NULL DEFAULT 0;",
+                "ALTER TABLE telemetry_samples ADD COLUMN gpuvendor TEXT;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN vendor TEXT;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN source TEXT;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN ordinal INTEGER;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN unifiedmemory INTEGER;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN hotspottemperaturecelsius REAL;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN memorytemperaturecelsius REAL;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN gttusedmegabytes REAL;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN gtttotalmegabytes REAL;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN uncorrectableeccerrors INTEGER;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN partitionid TEXT;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN thermalstate INTEGER;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN workingsetmegabytes REAL;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN memorybudgetmegabytes REAL;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN utilizationscope TEXT;",
+                "ALTER TABLE telemetry_gpu_samples ADD COLUMN vendordetailjson TEXT;",
+                "CREATE INDEX IF NOT EXISTS idx_telemetry_gpu_samples_vendor_collectedutc ON telemetry_gpu_samples(vendor, collectedutc);",
+                "CREATE INDEX IF NOT EXISTS idx_telemetry_gpu_samples_sampleid_vendor ON telemetry_gpu_samples(sampleid, vendor);",
+                "UPDATE telemetry_gpu_samples SET vendor = 'nvidia', source = 'dcgmExporter' WHERE vendor IS NULL;",
+                "UPDATE telemetry_samples SET gpuvendor = 'nvidia' WHERE gpuvendor IS NULL AND gpudevicecount > 0;"
             };
         }
     }

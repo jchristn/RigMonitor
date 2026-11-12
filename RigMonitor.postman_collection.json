@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "8d4924cb-35f5-4a41-9225-3ea16518f1ac",
     "name": "RigMonitor",
-    "description": "# RigMonitor Postman Collection\n\nThis collection targets the local RigMonitor daemon and documents the same-port API and dashboard surface.\n\n## Default Variables\n\n- `baseUrl`: full server URL, default `http://127.0.0.1:9990`\n- `livezPath`: liveness endpoint\n- `readyzPath`: readiness endpoint\n- `capabilitiesPath`: runtime capability endpoint\n- `telemetryPath`: telemetry snapshot endpoint\n- `telemetrySelectiveQuery`: selector example for partial collection\n- `openApiJsonPath`: raw OpenAPI document\n- `openApiUiPath`: Swagger UI route\n- `dashboardPath`: dashboard SPA route\n- `faviconPath`: dashboard favicon route\n\nImport the collection, make sure `baseUrl` matches the daemon listener you started, and then run the requests.\n\n## Response Casing\n\n- Response property names are camelCase.\n- RigMonitor-owned classification values are camelCase strings, for example `windows`, `x64`, `wireless80211`, `up`, and `fixed`.\n- Upstream opaque strings are preserved as provided, for example Ollama quantization labels such as `Q4_K_M`.\n\n## Telemetry Selector Rules\n\n`GET /v1/telemetry` accepts optional query keys for section selection:\n\n- `system`\n- `cpu`\n- `memory`\n- `network`\n- `disk`\n- `gpu`\n- `ollama`\n- `vllm`\n- `utilyze`\n\nRules:\n\n- If no recognized selector keys are present, **all sections are included by default**.\n- If a selector key is present without a value, it is treated as `true`.\n- If a selector key is present as `=false`, it is treated as `false`.\n- Once one or more recognized selector keys are present, unspecified recognized sections are treated as `false`.\n\nExample:\n\n`/v1/telemetry?cpu&memory&network&gpu=false`\n\nThis includes `cpu`, `memory`, and `network`, explicitly excludes `gpu`, and omits other recognized sections.",
+    "description": "# RigMonitor Postman Collection\n\nThis collection targets the local RigMonitor daemon and documents the same-port API and dashboard surface.\n\n## Default Variables\n\n- `baseUrl`: full server URL, default `http://127.0.0.1:9990`\n- `livezPath`: liveness endpoint\n- `readyzPath`: readiness endpoint\n- `capabilitiesPath`: runtime capability endpoint\n- `telemetryPath`: telemetry snapshot endpoint\n- `telemetrySelectiveQuery`: selector example for partial collection\n- `openApiJsonPath`: raw OpenAPI document\n- `openApiUiPath`: Swagger UI route\n- `dashboardPath`: dashboard SPA route\n- `faviconPath`: dashboard favicon route\n\nImport the collection, make sure `baseUrl` matches the daemon listener you started, and then run the requests.\n\n## Response Casing\n\n- Response property names are camelCase.\n- RigMonitor-owned classification values are camelCase strings, for example `windows`, `x64`, `wireless80211`, `up`, and `fixed`.\n- Upstream opaque strings are preserved as provided, for example Ollama quantization labels such as `Q4_K_M`.\n\n## Telemetry Selector Rules\n\n`GET /v1/telemetry` accepts optional query keys for section selection:\n\n- `system`\n- `cpu`\n- `memory`\n- `network`\n- `disk`\n- `gpu` (vendor-neutral aggregate)\n- `nvidia`\n- `amd`\n- `apple`\n- `qualcomm`\n- `ollama`\n- `vllm`\n- `utilyze`\n\nRules:\n\n- If no recognized selector keys are present, **all sections are included by default**.\n- If a selector key is present without a value, it is treated as `true`.\n- If a selector key is present as `=false`, it is treated as `false`.\n- Once one or more recognized selector keys are present, unspecified recognized sections are treated as `false`.\n- `gpu` collects every vendor but returns only the aggregate; `nvidia`, `amd`, `apple`, and `qualcomm` return the vendor sections.\n\nExample:\n\n`/v1/telemetry?cpu&memory&network&gpu=false`\n\nThis includes `cpu`, `memory`, and `network`, explicitly excludes `gpu`, and omits other recognized sections.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -298,6 +298,141 @@
               }
             }
           ]
+        },
+        {
+          "name": "GET /v1/telemetry (GPU Aggregate Only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Collects every GPU vendor and returns only the vendor-neutral `gpu` aggregate. Vendor sections are omitted and their collection entries report `disabled`.",
+            "url": "{{baseUrl}}{{telemetryPath}}?gpu"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test('Collection metadata contains gpu state', function () {",
+                  "    pm.expect(body).to.have.property('collection');",
+                  "    pm.expect(body.collection).to.have.property('gpu');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/telemetry (NVIDIA Only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Collects only the NVIDIA section (DCGM exporter) and its collection metadata.",
+            "url": "{{baseUrl}}{{telemetryPath}}?nvidia"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test('Collection metadata contains nvidia state', function () {",
+                  "    pm.expect(body).to.have.property('collection');",
+                  "    pm.expect(body.collection).to.have.property('nvidia');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/telemetry (AMD Only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Collects only the AMD section (AMD SMI library, amdgpu sysfs, or AMD Device Metrics Exporter) and its collection metadata.",
+            "url": "{{baseUrl}}{{telemetryPath}}?amd"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test('Collection metadata contains amd state', function () {",
+                  "    pm.expect(body).to.have.property('collection');",
+                  "    pm.expect(body.collection).to.have.property('amd');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/telemetry (Apple Only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Collects only the Apple GPU section (native macOS frameworks) and its collection metadata.",
+            "url": "{{baseUrl}}{{telemetryPath}}?apple"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test('Collection metadata contains apple state', function () {",
+                  "    pm.expect(body).to.have.property('collection');",
+                  "    pm.expect(body.collection).to.have.property('apple');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/telemetry (Qualcomm Only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Collects only the Qualcomm Adreno section and its collection metadata.",
+            "url": "{{baseUrl}}{{telemetryPath}}?qualcomm"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test('Collection metadata contains qualcomm state', function () {",
+                  "    pm.expect(body).to.have.property('collection');",
+                  "    pm.expect(body.collection).to.have.property('qualcomm');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -384,7 +519,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"hostname\": null,\n  \"hostPlatform\": null,\n  \"gpuUuid\": null,\n  \"gpuModel\": null,\n  \"nvidiaAvailable\": null,\n  \"ollamaAvailable\": null,\n  \"vllmAvailable\": null,\n  \"utilyzeAvailable\": null,\n  \"startUtc\": null,\n  \"endUtc\": null,\n  \"minCpuUtilizationPercent\": null,\n  \"maxCpuUtilizationPercent\": null,\n  \"minMemoryUtilizationPercent\": null,\n  \"maxMemoryUtilizationPercent\": null,\n  \"minGpuUtilizationPercent\": null,\n  \"maxGpuUtilizationPercent\": null,\n  \"minGpuTemperatureCelsius\": null,\n  \"maxGpuTemperatureCelsius\": null,\n  \"page\": 1,\n  \"pageSize\": 25\n}",
+              "raw": "{\n  \"hostname\": null,\n  \"hostPlatform\": null,\n  \"gpuUuid\": null,\n  \"gpuModel\": null,\n  \"nvidiaAvailable\": null,\n  \"ollamaAvailable\": null,\n  \"vllmAvailable\": null,\n  \"utilyzeAvailable\": null,\n  \"startUtc\": null,\n  \"endUtc\": null,\n  \"minCpuUtilizationPercent\": null,\n  \"maxCpuUtilizationPercent\": null,\n  \"minMemoryUtilizationPercent\": null,\n  \"maxMemoryUtilizationPercent\": null,\n  \"minGpuUtilizationPercent\": null,\n  \"maxGpuUtilizationPercent\": null,\n  \"minGpuTemperatureCelsius\": null,\n  \"maxGpuTemperatureCelsius\": null,\n  \"page\": 1,\n  \"pageSize\": 25,\n  \"gpuVendor\": null,\n  \"amdAvailable\": null,\n  \"appleGpuAvailable\": null,\n  \"qualcommAvailable\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -450,7 +585,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"hostname\": null,\n  \"startUtc\": \"2026-06-11T05:00:00Z\",\n  \"endUtc\": \"2026-06-11T06:00:00Z\",\n  \"bucketMinutes\": 60,\n  \"gpuUuid\": null,\n  \"includeEmptyBuckets\": true\n}",
+              "raw": "{\n  \"hostname\": null,\n  \"startUtc\": \"2026-06-11T05:00:00Z\",\n  \"endUtc\": \"2026-06-11T06:00:00Z\",\n  \"bucketMinutes\": 60,\n  \"gpuUuid\": null,\n  \"includeEmptyBuckets\": true,\n  \"gpuVendor\": null,\n  \"includeGpuVendorBreakdown\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -24,6 +24,21 @@ namespace RigMonitor.Core.Models
         public bool NvidiaAvailable { get; set; } = false;
 
         /// <summary>
+        /// Whether AMD GPU telemetry was available.
+        /// </summary>
+        public bool AmdAvailable { get; set; } = false;
+
+        /// <summary>
+        /// Whether Apple GPU telemetry was available.
+        /// </summary>
+        public bool AppleGpuAvailable { get; set; } = false;
+
+        /// <summary>
+        /// Whether Qualcomm GPU telemetry was available.
+        /// </summary>
+        public bool QualcommAvailable { get; set; } = false;
+
+        /// <summary>
         /// Whether Ollama telemetry is available.
         /// </summary>
         public bool OllamaAvailable { get; set; } = false;
@@ -67,6 +82,26 @@ namespace RigMonitor.Core.Models
         /// GPU telemetry when available.
         /// </summary>
         public GpuTelemetry? Gpu { get; set; } = null;
+
+        /// <summary>
+        /// NVIDIA GPU section.
+        /// </summary>
+        public NvidiaGpuTelemetry? Nvidia { get; set; } = null;
+
+        /// <summary>
+        /// AMD GPU section.
+        /// </summary>
+        public AmdGpuTelemetry? Amd { get; set; } = null;
+
+        /// <summary>
+        /// Apple GPU section.
+        /// </summary>
+        public AppleGpuTelemetry? Apple { get; set; } = null;
+
+        /// <summary>
+        /// Qualcomm GPU section.
+        /// </summary>
+        public QualcommGpuTelemetry? Qualcomm { get; set; } = null;
 
         /// <summary>
         /// Ollama telemetry when available.

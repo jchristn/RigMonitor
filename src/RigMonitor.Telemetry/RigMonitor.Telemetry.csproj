@@ -8,11 +8,17 @@
   </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>0.2.1-alpha</Version>
+    <Version>0.3.0-alpha</Version>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Test.Xunit" />
+    <InternalsVisibleTo Include="Test.Automated" />
+    <InternalsVisibleTo Include="Test.Shared" />
+  </ItemGroup>
 </Project>

@@ -36,6 +36,26 @@ namespace RigMonitor.Core.Models
         public bool IncludeGpu { get; set; } = true;
 
         /// <summary>
+        /// Include NVIDIA GPU section.
+        /// </summary>
+        public bool IncludeNvidia { get; set; } = true;
+
+        /// <summary>
+        /// Include AMD GPU section.
+        /// </summary>
+        public bool IncludeAmd { get; set; } = true;
+
+        /// <summary>
+        /// Include Apple GPU section.
+        /// </summary>
+        public bool IncludeApple { get; set; } = true;
+
+        /// <summary>
+        /// Include Qualcomm GPU section.
+        /// </summary>
+        public bool IncludeQualcomm { get; set; } = true;
+
+        /// <summary>
         /// Whether to include the Ollama section.
         /// </summary>
         public bool IncludeOllama { get; set; } = true;
@@ -73,6 +93,10 @@ namespace RigMonitor.Core.Models
                 IncludeNetwork = false,
                 IncludeDisk = false,
                 IncludeGpu = false,
+                IncludeNvidia = false,
+                IncludeAmd = false,
+                IncludeApple = false,
+                IncludeQualcomm = false,
                 IncludeOllama = false,
                 IncludeVllm = false,
                 IncludeUtilyze = false

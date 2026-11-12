@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { JsonModal } from '../components/JsonModal'
 import { ExternalServicesCard } from '../components/ExternalServicesCard'
+import { GpuVendorSections, gpuVendors } from '../components/gpu/GpuVendorSections'
 import { RefreshButton } from '../components/RefreshButton'
 import { SectionCard } from '../components/SectionCard'
 import { StatCard } from '../components/StatCard'
@@ -13,8 +14,28 @@ import {
   formatDuration,
   formatDurationHms,
   formatNumber,
+  formatOptional,
   formatPercent,
 } from '../i18n/formatters'
+
+const hideUnsupportedStorageKey = 'rigmonitor.gpu.hideUnsupported'
+
+function readHideUnsupported() {
+  try {
+    const stored = window.localStorage.getItem(hideUnsupportedStorageKey)
+    return stored === null ? null : stored === 'true'
+  } catch {
+    return null
+  }
+}
+
+function writeHideUnsupported(value) {
+  try {
+    window.localStorage.setItem(hideUnsupportedStorageKey, String(value))
+  } catch {
+    // Storage can be unavailable (private mode); the toggle still works for this page view.
+  }
+}
 
 const refreshIntervals = [
   { value: 2000, label: '2s' },
@@ -49,49 +70,38 @@ function hasGpuMemory(metrics) {
   return (metrics?.memoryTotalMegabytes || 0) > 0
 }
 
-function gpuMemoryUtilization(metrics) {
-  if (!hasGpuMemory(metrics)) {
-    return '-'
-  }
-
-  return formatPercent(metrics.memoryUtilizationPercent)
-}
-
-function gpuMemoryRange(metrics, sharedLabel) {
-  if (!hasGpuMemory(metrics)) {
-    return '-'
-  }
-
-  const suffix = metrics.memoryShared ? ` (${sharedLabel})` : ''
-  return `${formatBytes(megabytesToBytes(metrics.memoryUsedMegabytes))} / ${formatBytes(megabytesToBytes(metrics.memoryTotalMegabytes))}${suffix}`
-}
-
-function gpuMemorySummary(gpu, sharedLabel) {
-  const devices = gpu?.devices || []
-  if (devices.length < 1) {
-    return '-'
-  }
-
-  const memoryDevices = devices.filter((device) => hasGpuMemory(device.metrics))
+export function gpuMemorySummary(gpu, sharedLabel) {
+  const memoryDevices = (gpu?.devices || []).filter((device) => hasGpuMemory(device.metrics))
   if (memoryDevices.length < 1) {
-    return '-'
-  }
-
-  const sharedDevice = memoryDevices.find((device) => device.metrics?.memoryShared)
-  if (sharedDevice) {
-    const metrics = sharedDevice.metrics
-    return `${formatBytes(megabytesToBytes(metrics.memoryUsedMegabytes))} / ${formatBytes(megabytesToBytes(metrics.memoryTotalMegabytes))} (${formatPercent(metrics.memoryUtilizationPercent)}, ${sharedLabel})`
+    return '—'
   }
 
   const usedMegabytes = memoryDevices.reduce((total, device) => total + (device.metrics?.memoryUsedMegabytes || 0), 0)
   const totalMegabytes = memoryDevices.reduce((total, device) => total + (device.metrics?.memoryTotalMegabytes || 0), 0)
-
   if (totalMegabytes <= 0) {
-    return '-'
+    return '—'
   }
 
+  const shared = memoryDevices.some((device) => device.metrics?.memoryShared)
   const utilizationPercent = (usedMegabytes / totalMegabytes) * 100
-  return `${formatBytes(megabytesToBytes(usedMegabytes))} / ${formatBytes(megabytesToBytes(totalMegabytes))} (${formatPercent(utilizationPercent)})`
+  const suffix = shared ? `, ${sharedLabel}` : ''
+  return `${formatBytes(megabytesToBytes(usedMegabytes))} / ${formatBytes(megabytesToBytes(totalMegabytes))} (${formatPercent(utilizationPercent)}${suffix})`
+}
+
+export function gpuUtilizationSummary(gpu) {
+  const devices = gpu?.devices || []
+  if (devices.length < 1) {
+    return null
+  }
+
+  return devices.reduce((total, device) => total + (device.metrics?.gpuUtilizationPercent || 0), 0) / devices.length
+}
+
+export function gpuPowerSummary(gpu) {
+  const values = (gpu?.devices || [])
+    .map((device) => device.metrics?.powerUsageWatts)
+    .filter((value) => value != null && !Number.isNaN(value))
+  return values.length > 0 ? values.reduce((total, value) => total + value, 0) : null
 }
 
 function StateBox({ title, body, className = '' }) {
@@ -116,6 +126,7 @@ export function HomeView() {
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false)
   const [jsonModalValue, setJsonModalValue] = useState('')
   const [nowMs, setNowMs] = useState(() => Date.now())
+  const [hideUnsupportedOverride, setHideUnsupportedOverride] = useState(readHideUnsupported)
   const {
     autoRefresh,
     capabilities,
@@ -159,7 +170,7 @@ export function HomeView() {
   const memoryStatus = collection.memory || null
   const diskStatus = collection.disk || null
   const networkStatus = collection.network || null
-  const gpuStatus = collection.gpu || null
+  const hideUnsupported = hideUnsupportedOverride ?? Boolean(capabilities?.hideUnsupportedGpuSections)
   const ollamaStatus = collection.ollama || null
   const vllmStatus = collection.vllm || null
   const utilyzeStatus = collection.utilyze || null
@@ -251,6 +262,17 @@ export function HomeView() {
               />
               <span>{t('overview.autoRefresh')}</span>
             </label>
+            <label className="toggle">
+              <input
+                checked={!hideUnsupported}
+                onChange={(event) => {
+                  setHideUnsupportedOverride(!event.target.checked)
+                  writeHideUnsupported(!event.target.checked)
+                }}
+                type="checkbox"
+              />
+              <span>{t('overview.showUnsupportedGpus')}</span>
+            </label>
           </div>
         </section>
 
@@ -262,9 +284,19 @@ export function HomeView() {
         ) : null}
 
         <div className="pill-row">
-          <span className={`pill ${capabilities?.nvidiaAvailable ? 'success' : 'warning'}`}>
-            {capabilities?.nvidiaAvailable ? t('overview.capabilities.gpuOn') : t('overview.capabilities.gpuOff')}
-          </span>
+          {gpuVendors.map((vendor) => {
+            const available = Boolean(capabilities?.[vendor.capability])
+            const probe = (capabilities?.gpuProviders || []).find((item) => item.vendor === vendor.key)
+            return (
+              <span
+                className={`pill ${available ? 'success' : ''}`.trim()}
+                key={vendor.key}
+                title={probe ? [probe.source ? t(`sources.${probe.source}`, { defaultValue: probe.source }) : null, probe.endpoint, probe.detail].filter(Boolean).join(' · ') : undefined}
+              >
+                {`${t(`vendors.${vendor.key}`)}: ${available ? t('overview.capabilities.gpuOn') : t('overview.capabilities.gpuOff')}`}
+              </span>
+            )
+          })}
           <span className={`pill ${capabilities?.ollamaAvailable ? 'success' : 'warning'}`}>
             {capabilities?.ollamaAvailable ? t('overview.capabilities.ollamaOn') : t('overview.capabilities.ollamaOff')}
           </span>
@@ -283,6 +315,8 @@ export function HomeView() {
           <StatCard label={t('overview.cards.uptime')} value={formatDuration(data.system?.uptimeMs)} />
           <StatCard label={t('overview.cards.memory')} value={formatPercent(data.memory?.utilizationPercent)} />
           <StatCard label={t('overview.cards.gpuMemory')} value={gpuMemorySummary(data.gpu, t('labels.shared'))} />
+          <StatCard label={t('overview.cards.gpuUtilization')} value={formatPercent(gpuUtilizationSummary(data.gpu))} />
+          <StatCard label={t('overview.cards.gpuPower')} value={formatOptional(gpuPowerSummary(data.gpu), 'W', 2)} />
           <StatCard label={t('overview.cards.cpu')} value={formatPercent(data.cpu?.utilizationPercent)} />
         </div>
 
@@ -482,47 +516,7 @@ export function HomeView() {
             )}
           </SectionCard>
 
-          <SectionCard
-            className="overview-half"
-            title={t('sections.gpu')}
-            description={t('descriptions.gpu')}
-            extra={data.gpu ? <span className="pill success">{`${t('labels.vendor')}: ${data.gpu.vendor}`}</span> : null}
-            status={gpuStatus}
-          >
-            {data.gpu ? (
-              <>
-              <div className="pill-row">
-                <span className="pill">{`${t('labels.endpoint')}: ${data.gpu.exporterEndpoint}`}</span>
-              </div>
-              <table className="metric-table">
-                <thead>
-                  <tr>
-                    <th>{t('labels.model')}</th>
-                    <th>{t('labels.vram')}</th>
-                    <th>{t('labels.vramUtilization')}</th>
-                    <th>{t('labels.utilization')}</th>
-                    <th>{t('labels.temperature')}</th>
-                    <th>{t('labels.power')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.gpu.devices.map((device) => (
-                    <tr key={`${device.deviceIndex}-${device.uuid}`}>
-                      <td>{device.model || device.uuid}</td>
-                      <td>{gpuMemoryRange(device.metrics, t('labels.shared'))}</td>
-                      <td>{gpuMemoryUtilization(device.metrics)}</td>
-                      <td>{formatPercent(device.metrics?.gpuUtilizationPercent)}</td>
-                      <td>{`${formatNumber(device.metrics?.temperatureCelsius, { maximumFractionDigits: 1 })} C`}</td>
-                      <td>{`${formatNumber(device.metrics?.powerUsageWatts, { maximumFractionDigits: 1 })} W`}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </>
-            ) : (
-              <SectionPlaceholder message={placeholderMessage(gpuStatus)} />
-            )}
-          </SectionCard>
+          <GpuVendorSections data={data} hideUnsupported={hideUnsupported} />
 
           <SectionCard
             className="overview-span-2"

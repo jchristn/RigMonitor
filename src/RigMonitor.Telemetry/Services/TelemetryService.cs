@@ -10,6 +10,7 @@ namespace RigMonitor.Telemetry.Services
     using RigMonitor.Core.Observability;
     using RigMonitor.Core.Services.Interfaces;
     using RigMonitor.Core.Settings;
+    using RigMonitor.Telemetry.Gpu;
 
     /// <summary>
     /// Telemetry aggregation service.
@@ -21,7 +22,10 @@ namespace RigMonitor.Telemetry.Services
         private readonly IMemoryInfoProvider _MemoryInfoProvider;
         private readonly INetworkRateSampler _NetworkRateSampler;
         private readonly IRuntimeCapabilitiesService _RuntimeCapabilitiesService;
-        private readonly IGpuTelemetryProvider _GpuTelemetryProvider;
+        private readonly INvidiaGpuTelemetryProvider _NvidiaProvider;
+        private readonly IAmdGpuTelemetryProvider _AmdProvider;
+        private readonly IAppleGpuTelemetryProvider _AppleProvider;
+        private readonly IQualcommGpuTelemetryProvider _QualcommProvider;
         private readonly IOllamaClient _OllamaClient;
         private readonly IVllmTelemetryProvider _VllmTelemetryProvider;
         private readonly IUtilyzeTelemetryProvider _UtilyzeTelemetryProvider;
@@ -36,6 +40,10 @@ namespace RigMonitor.Telemetry.Services
         private const string _NetworkSection = "network";
         private const string _DiskSection = "disk";
         private const string _GpuSection = "gpu";
+        private const string _NvidiaSection = "nvidia";
+        private const string _AmdSection = "amd";
+        private const string _AppleSection = "apple";
+        private const string _QualcommSection = "qualcomm";
         private const string _OllamaSection = "ollama";
         private const string _VllmSection = "vllm";
         private const string _UtilyzeSection = "utilyze";
@@ -48,7 +56,10 @@ namespace RigMonitor.Telemetry.Services
         /// <param name="memoryInfoProvider">Memory provider.</param>
         /// <param name="networkRateSampler">Network sampler.</param>
         /// <param name="runtimeCapabilitiesService">Capabilities service.</param>
-        /// <param name="gpuTelemetryProvider">GPU provider.</param>
+        /// <param name="nvidiaProvider">NVIDIA GPU provider.</param>
+        /// <param name="amdProvider">AMD GPU provider.</param>
+        /// <param name="appleProvider">Apple GPU provider.</param>
+        /// <param name="qualcommProvider">Qualcomm GPU provider.</param>
         /// <param name="ollamaClient">Ollama client.</param>
         /// <param name="vllmTelemetryProvider">vLLM provider.</param>
         /// <param name="utilyzeTelemetryProvider">Utilyze provider.</param>
@@ -59,7 +70,10 @@ namespace RigMonitor.Telemetry.Services
             IMemoryInfoProvider memoryInfoProvider,
             INetworkRateSampler networkRateSampler,
             IRuntimeCapabilitiesService runtimeCapabilitiesService,
-            IGpuTelemetryProvider gpuTelemetryProvider,
+            INvidiaGpuTelemetryProvider nvidiaProvider,
+            IAmdGpuTelemetryProvider amdProvider,
+            IAppleGpuTelemetryProvider appleProvider,
+            IQualcommGpuTelemetryProvider qualcommProvider,
             IOllamaClient ollamaClient,
             IVllmTelemetryProvider vllmTelemetryProvider,
             IUtilyzeTelemetryProvider utilyzeTelemetryProvider,
@@ -70,7 +84,10 @@ namespace RigMonitor.Telemetry.Services
             if (memoryInfoProvider == null) throw new ArgumentNullException(nameof(memoryInfoProvider));
             if (networkRateSampler == null) throw new ArgumentNullException(nameof(networkRateSampler));
             if (runtimeCapabilitiesService == null) throw new ArgumentNullException(nameof(runtimeCapabilitiesService));
-            if (gpuTelemetryProvider == null) throw new ArgumentNullException(nameof(gpuTelemetryProvider));
+            if (nvidiaProvider == null) throw new ArgumentNullException(nameof(nvidiaProvider));
+            if (amdProvider == null) throw new ArgumentNullException(nameof(amdProvider));
+            if (appleProvider == null) throw new ArgumentNullException(nameof(appleProvider));
+            if (qualcommProvider == null) throw new ArgumentNullException(nameof(qualcommProvider));
             if (ollamaClient == null) throw new ArgumentNullException(nameof(ollamaClient));
             if (vllmTelemetryProvider == null) throw new ArgumentNullException(nameof(vllmTelemetryProvider));
             if (utilyzeTelemetryProvider == null) throw new ArgumentNullException(nameof(utilyzeTelemetryProvider));
@@ -80,7 +97,10 @@ namespace RigMonitor.Telemetry.Services
             _MemoryInfoProvider = memoryInfoProvider;
             _NetworkRateSampler = networkRateSampler;
             _RuntimeCapabilitiesService = runtimeCapabilitiesService;
-            _GpuTelemetryProvider = gpuTelemetryProvider;
+            _NvidiaProvider = nvidiaProvider;
+            _AmdProvider = amdProvider;
+            _AppleProvider = appleProvider;
+            _QualcommProvider = qualcommProvider;
             _OllamaClient = ollamaClient;
             _VllmTelemetryProvider = vllmTelemetryProvider;
             _UtilyzeTelemetryProvider = utilyzeTelemetryProvider;
@@ -189,6 +209,9 @@ namespace RigMonitor.Telemetry.Services
                 CollectedUtc = collectedUtc,
                 HostPlatform = capabilities.HostPlatform,
                 NvidiaAvailable = capabilities.NvidiaAvailable,
+                AmdAvailable = capabilities.AmdAvailable,
+                AppleGpuAvailable = capabilities.AppleGpuAvailable,
+                QualcommAvailable = capabilities.QualcommAvailable,
                 OllamaAvailable = capabilities.OllamaAvailable,
                 VllmAvailable = capabilities.VllmAvailable,
                 UtilyzeAvailable = capabilities.UtilyzeAvailable
@@ -240,15 +263,7 @@ namespace RigMonitor.Telemetry.Services
                 value => snapshot.Disk = value,
                 cancellationToken).ConfigureAwait(false);
 
-            collection.Gpu = await CollectSectionAsync(
-                _GpuSection,
-                requestOptions.IncludeGpu,
-                capabilities.NvidiaAvailable,
-                async (token) => await _GpuTelemetryProvider.GetTelemetryAsync(token).ConfigureAwait(false),
-                value => snapshot.Gpu = value,
-                cancellationToken).ConfigureAwait(false);
-
-            ApplyUnifiedMemoryGpuFallback(snapshot);
+            await CollectGpuSectionsAsync(requestOptions, capabilities, snapshot, collection, cancellationToken).ConfigureAwait(false);
 
             collection.Ollama = await CollectSectionAsync(
                 _OllamaSection,
@@ -287,6 +302,10 @@ namespace RigMonitor.Telemetry.Services
                 && options.IncludeNetwork
                 && options.IncludeDisk
                 && options.IncludeGpu
+                && options.IncludeNvidia
+                && options.IncludeAmd
+                && options.IncludeApple
+                && options.IncludeQualcomm
                 && options.IncludeOllama
                 && options.IncludeVllm
                 && options.IncludeUtilyze;
@@ -304,6 +323,10 @@ namespace RigMonitor.Telemetry.Services
                 collection.Network,
                 collection.Disk,
                 collection.Gpu,
+                collection.Nvidia,
+                collection.Amd,
+                collection.Apple,
+                collection.Qualcomm,
                 collection.Ollama,
                 collection.Vllm,
                 collection.Utilyze
@@ -318,44 +341,250 @@ namespace RigMonitor.Telemetry.Services
             return RigMonitorTelemetryNames.OutcomeOk;
         }
 
-        private static void ApplyUnifiedMemoryGpuFallback(TelemetrySnapshot snapshot)
+        private async Task CollectGpuSectionsAsync(
+            TelemetryRequestOptions requestOptions,
+            RuntimeCapabilities capabilities,
+            TelemetrySnapshot snapshot,
+            TelemetryCollectionMetadata collection,
+            CancellationToken cancellationToken)
         {
-            if (snapshot.Memory == null || snapshot.Gpu == null)
+            bool collectNvidia = requestOptions.IncludeNvidia || requestOptions.IncludeGpu;
+            bool collectAmd = requestOptions.IncludeAmd || requestOptions.IncludeGpu;
+            bool collectApple = requestOptions.IncludeApple || requestOptions.IncludeGpu;
+            bool collectQualcomm = requestOptions.IncludeQualcomm || requestOptions.IncludeGpu;
+
+            long gpuStart = _TimeProvider.GetTimestamp();
+            using Activity? gpuActivity = requestOptions.IncludeGpu
+                ? RigMonitorInstrumentation.StartActivity(RigMonitorTelemetryNames.SpanStagePrefix + _GpuSection)
+                : null;
+            gpuActivity?.SetTag(RigMonitorTelemetryNames.LabelSection, _GpuSection);
+
+            NvidiaGpuTelemetry? nvidia = null;
+            AmdGpuTelemetry? amd = null;
+            AppleGpuTelemetry? apple = null;
+            QualcommGpuTelemetry? qualcomm = null;
+
+            Task<TelemetrySectionCollectionStatus> nvidiaTask = CollectSectionAsync(
+                _NvidiaSection,
+                collectNvidia,
+                capabilities.NvidiaAvailable,
+                async (token) => await _NvidiaProvider.GetTelemetryAsync(token).ConfigureAwait(false),
+                value => nvidia = value,
+                cancellationToken);
+            Task<TelemetrySectionCollectionStatus> amdTask = CollectSectionAsync(
+                _AmdSection,
+                collectAmd,
+                capabilities.AmdAvailable,
+                async (token) => await _AmdProvider.GetTelemetryAsync(token).ConfigureAwait(false),
+                value => amd = value,
+                cancellationToken);
+            Task<TelemetrySectionCollectionStatus> appleTask = CollectSectionAsync(
+                _AppleSection,
+                collectApple,
+                capabilities.AppleGpuAvailable,
+                async (token) => await _AppleProvider.GetTelemetryAsync(token).ConfigureAwait(false),
+                value => apple = value,
+                cancellationToken);
+            Task<TelemetrySectionCollectionStatus> qualcommTask = CollectSectionAsync(
+                _QualcommSection,
+                collectQualcomm,
+                capabilities.QualcommAvailable,
+                async (token) => await _QualcommProvider.GetTelemetryAsync(token).ConfigureAwait(false),
+                value => qualcomm = value,
+                cancellationToken);
+
+            await Task.WhenAll(nvidiaTask, amdTask, appleTask, qualcommTask).ConfigureAwait(false);
+
+            TelemetrySectionCollectionStatus nvidiaStatus = await nvidiaTask.ConfigureAwait(false);
+            TelemetrySectionCollectionStatus amdStatus = await amdTask.ConfigureAwait(false);
+            TelemetrySectionCollectionStatus appleStatus = await appleTask.ConfigureAwait(false);
+            TelemetrySectionCollectionStatus qualcommStatus = await qualcommTask.ConfigureAwait(false);
+
+            GpuTelemetry? aggregate = GpuAggregator.Build(nvidia, amd, apple, qualcomm);
+            if (aggregate != null)
             {
-                return;
+                ApplyUnifiedMemoryGpuFallback(snapshot.Memory, aggregate);
             }
 
-            if (snapshot.Memory.TotalBytes <= 0L)
+            if (requestOptions.IncludeGpu)
             {
-                return;
+                snapshot.Gpu = aggregate;
             }
 
-            double totalMegabytes = BytesToMegabytes(snapshot.Memory.TotalBytes);
-            double availableMegabytes = BytesToMegabytes(snapshot.Memory.AvailableBytes);
-            double usedMegabytes = snapshot.Memory.UsedBytes > 0L
-                ? BytesToMegabytes(snapshot.Memory.UsedBytes)
-                : Math.Max(0D, totalMegabytes - availableMegabytes);
+            DateTime referenceUtc = _TimeProvider.GetUtcNow().UtcDateTime;
+            collection.Gpu = BuildDerivedGpuStatus(
+                requestOptions.IncludeGpu,
+                new KeyValuePair<string, TelemetrySectionCollectionStatus>[]
+                {
+                    new KeyValuePair<string, TelemetrySectionCollectionStatus>(_NvidiaSection, nvidiaStatus),
+                    new KeyValuePair<string, TelemetrySectionCollectionStatus>(_AmdSection, amdStatus),
+                    new KeyValuePair<string, TelemetrySectionCollectionStatus>(_AppleSection, appleStatus),
+                    new KeyValuePair<string, TelemetrySectionCollectionStatus>(_QualcommSection, qualcommStatus)
+                },
+                referenceUtc);
 
-            foreach (GpuDeviceTelemetry device in snapshot.Gpu.Devices)
+            string gpuMetricStatus = !collection.Gpu.Requested
+                ? "disabled"
+                : (!collection.Gpu.Supported ? "unsupported" : JsonName(collection.Gpu.StatusCode));
+            gpuActivity?.SetTag(RigMonitorTelemetryNames.LabelSectionStatus, gpuMetricStatus);
+            if (collection.Gpu.StatusCode == TelemetryCollectionStatusCodeEnum.Ok)
             {
-                if (device.Metrics.MemoryTotalMegabytes > 0D || !IsUnifiedMemoryGpu(device))
+                RigMonitorInstrumentation.SetOk(gpuActivity);
+                if (collection.Gpu.LastSuccessUtc.HasValue)
+                {
+                    RigMonitorInstrumentation.SetSectionLastSuccess(_GpuSection, collection.Gpu.LastSuccessUtc.Value);
+                }
+            }
+            else if (collection.Gpu.Requested && collection.Gpu.Supported)
+            {
+                RigMonitorInstrumentation.SetError(gpuActivity, gpuMetricStatus, collection.Gpu.Message);
+            }
+
+            RigMonitorInstrumentation.RecordSection(
+                _GpuSection,
+                gpuMetricStatus,
+                collection.Gpu.Requested && collection.Gpu.Supported ? _TimeProvider.GetElapsedTime(gpuStart).TotalSeconds : null);
+
+            snapshot.Nvidia = requestOptions.IncludeNvidia ? nvidia : null;
+            snapshot.Amd = requestOptions.IncludeAmd ? amd : null;
+            snapshot.Apple = requestOptions.IncludeApple ? apple : null;
+            snapshot.Qualcomm = requestOptions.IncludeQualcomm ? qualcomm : null;
+
+            collection.Nvidia = requestOptions.IncludeNvidia ? nvidiaStatus : BuildResponseStatus(_NvidiaSection, false, capabilities.NvidiaAvailable, referenceUtc);
+            collection.Amd = requestOptions.IncludeAmd ? amdStatus : BuildResponseStatus(_AmdSection, false, capabilities.AmdAvailable, referenceUtc);
+            collection.Apple = requestOptions.IncludeApple ? appleStatus : BuildResponseStatus(_AppleSection, false, capabilities.AppleGpuAvailable, referenceUtc);
+            collection.Qualcomm = requestOptions.IncludeQualcomm ? qualcommStatus : BuildResponseStatus(_QualcommSection, false, capabilities.QualcommAvailable, referenceUtc);
+        }
+
+        private TelemetrySectionCollectionStatus BuildDerivedGpuStatus(
+            bool requested,
+            IReadOnlyList<KeyValuePair<string, TelemetrySectionCollectionStatus>> vendors,
+            DateTime referenceUtc)
+        {
+            bool supported = false;
+            DateTime? lastAttempt = null;
+            DateTime? lastSuccess = null;
+            double? lastDuration = null;
+            List<string> problems = new List<string>();
+            List<string> errors = new List<string>();
+            TelemetryCollectionStatusCodeEnum worst = TelemetryCollectionStatusCodeEnum.Unsupported;
+            bool anyOk = false;
+
+            foreach (KeyValuePair<string, TelemetrySectionCollectionStatus> vendor in vendors)
+            {
+                TelemetrySectionCollectionStatus status = vendor.Value;
+                if (!status.Supported)
                 {
                     continue;
                 }
 
-                device.Metrics.MemoryUsedMegabytes = usedMegabytes;
-                device.Metrics.MemoryFreeMegabytes = availableMegabytes;
-                device.Metrics.MemoryTotalMegabytes = totalMegabytes;
-                device.Metrics.MemorySource = "unifiedSystemMemory";
-                device.Metrics.MemoryShared = true;
+                supported = true;
+                if (status.LastAttemptUtc.HasValue && (!lastAttempt.HasValue || status.LastAttemptUtc > lastAttempt)) lastAttempt = status.LastAttemptUtc;
+                if (status.LastSuccessUtc.HasValue && (!lastSuccess.HasValue || status.LastSuccessUtc > lastSuccess)) lastSuccess = status.LastSuccessUtc;
+                if (status.LastDurationMs.HasValue && (!lastDuration.HasValue || status.LastDurationMs > lastDuration)) lastDuration = status.LastDurationMs;
+
+                if (status.StatusCode == TelemetryCollectionStatusCodeEnum.Ok)
+                {
+                    anyOk = true;
+                    continue;
+                }
+
+                if (status.StatusCode == TelemetryCollectionStatusCodeEnum.Disabled)
+                {
+                    continue;
+                }
+
+                problems.Add(vendor.Key + ": " + JsonName(status.StatusCode));
+                if (!String.IsNullOrWhiteSpace(status.LastError)) errors.Add(vendor.Key + ": " + status.LastError);
+                if (Severity(status.StatusCode) > Severity(worst)) worst = status.StatusCode;
+            }
+
+            TelemetrySectionFreshness freshness = BuildFreshness(requested, supported, lastSuccess, referenceUtc);
+            TelemetryCollectionStatusCodeEnum statusCode;
+            if (!requested) statusCode = TelemetryCollectionStatusCodeEnum.Disabled;
+            else if (!supported) statusCode = TelemetryCollectionStatusCodeEnum.Unsupported;
+            else if (anyOk) statusCode = TelemetryCollectionStatusCodeEnum.Ok;
+            else statusCode = worst;
+
+            string message = BuildStatusMessage(_GpuSection, statusCode, freshness.Status);
+            if (requested && supported && problems.Count > 0)
+            {
+                message += " (" + String.Join(", ", problems) + ")";
+            }
+
+            return new TelemetrySectionCollectionStatus
+            {
+                Requested = requested,
+                Supported = supported,
+                StatusCode = statusCode,
+                LastAttemptUtc = lastAttempt,
+                LastSuccessUtc = lastSuccess,
+                LastDurationMs = lastDuration,
+                Freshness = freshness,
+                Message = message,
+                LastError = errors.Count > 0 ? String.Join("; ", errors) : null
+            };
+        }
+
+        private static int Severity(TelemetryCollectionStatusCodeEnum statusCode)
+        {
+            switch (statusCode)
+            {
+                case TelemetryCollectionStatusCodeEnum.Error:
+                    return 4;
+                case TelemetryCollectionStatusCodeEnum.Stale:
+                    return 3;
+                case TelemetryCollectionStatusCodeEnum.Unavailable:
+                    return 2;
+                case TelemetryCollectionStatusCodeEnum.Unsupported:
+                    return 1;
+                default:
+                    return 0;
             }
         }
 
-        private static bool IsUnifiedMemoryGpu(GpuDeviceTelemetry device)
+        private static string JsonName(TelemetryCollectionStatusCodeEnum statusCode)
         {
-            string model = device.Model ?? String.Empty;
-            return model.IndexOf("GB10", StringComparison.OrdinalIgnoreCase) >= 0
-                || model.IndexOf("DGX Spark", StringComparison.OrdinalIgnoreCase) >= 0;
+            string name = statusCode.ToString();
+            return Char.ToLowerInvariant(name[0]) + name.Substring(1);
+        }
+
+        private static void ApplyUnifiedMemoryGpuFallback(MemoryTelemetry? memory, GpuTelemetry gpu)
+        {
+            if (memory == null || memory.TotalBytes <= 0L)
+            {
+                return;
+            }
+
+            double totalMegabytes = BytesToMegabytes(memory.TotalBytes);
+            double availableMegabytes = BytesToMegabytes(memory.AvailableBytes);
+            double usedMegabytes = memory.UsedBytes > 0L
+                ? BytesToMegabytes(memory.UsedBytes)
+                : Math.Max(0D, totalMegabytes - availableMegabytes);
+
+            foreach (GpuDeviceTelemetry device in gpu.Devices)
+            {
+                if (!device.UnifiedMemory || device.Metrics.HasReportedMemoryTotal)
+                {
+                    continue;
+                }
+
+                if (device.Metrics.MemoryUsedMegabytes > 0D)
+                {
+                    // The device reports its own usage; only the capacity comes from the host.
+                    device.Metrics.MemoryTotalMegabytes = totalMegabytes;
+                    device.Metrics.MemoryFreeMegabytes = Math.Max(0D, totalMegabytes - device.Metrics.MemoryUsedMegabytes);
+                }
+                else
+                {
+                    device.Metrics.MemoryUsedMegabytes = usedMegabytes;
+                    device.Metrics.MemoryFreeMegabytes = availableMegabytes;
+                    device.Metrics.MemoryTotalMegabytes = totalMegabytes;
+                }
+
+                device.Metrics.MemorySource = "unifiedSystemMemory";
+                device.Metrics.MemoryShared = true;
+            }
         }
 
         private static double BytesToMegabytes(long value)
@@ -682,6 +911,10 @@ namespace RigMonitor.Telemetry.Services
                 { _NetworkSection, new TelemetrySectionCollectionStatus() },
                 { _DiskSection, new TelemetrySectionCollectionStatus() },
                 { _GpuSection, new TelemetrySectionCollectionStatus() },
+                { _NvidiaSection, new TelemetrySectionCollectionStatus() },
+                { _AmdSection, new TelemetrySectionCollectionStatus() },
+                { _AppleSection, new TelemetrySectionCollectionStatus() },
+                { _QualcommSection, new TelemetrySectionCollectionStatus() },
                 { _OllamaSection, new TelemetrySectionCollectionStatus() },
                 { _VllmSection, new TelemetrySectionCollectionStatus() },
                 { _UtilyzeSection, new TelemetrySectionCollectionStatus() }
@@ -698,6 +931,26 @@ namespace RigMonitor.Telemetry.Services
             if (String.Equals(sectionName, _GpuSection, StringComparison.OrdinalIgnoreCase))
             {
                 return "GPU";
+            }
+
+            if (String.Equals(sectionName, _NvidiaSection, StringComparison.OrdinalIgnoreCase))
+            {
+                return "NVIDIA GPU";
+            }
+
+            if (String.Equals(sectionName, _AmdSection, StringComparison.OrdinalIgnoreCase))
+            {
+                return "AMD GPU";
+            }
+
+            if (String.Equals(sectionName, _AppleSection, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Apple GPU";
+            }
+
+            if (String.Equals(sectionName, _QualcommSection, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Qualcomm GPU";
             }
 
             if (String.Equals(sectionName, _OllamaSection, StringComparison.OrdinalIgnoreCase))

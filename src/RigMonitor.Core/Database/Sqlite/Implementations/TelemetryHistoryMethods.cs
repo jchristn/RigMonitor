@@ -25,7 +25,7 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
             "networkreceivebytespersecond, networktransmitbytespersecond, diskreadoperationspersecond, diskwriteoperationspersecond, " +
             "diskreadqueuedepth, diskwritequeuedepth, gpudevicecount, gpuaverageutilizationpercent, gpuaveragememoryutilizationpercent, " +
             "gpuaveragetemperaturecelsius, gputotalpowerusagewatts, ollamaavailablemodelcount, ollamaloadedmodelcount, vllmrunningrequests, " +
-            "vllmwaitingrequests, vllmgpucacheusagepercent, utilyzedevicecount";
+            "vllmwaitingrequests, vllmgpucacheusagepercent, utilyzedevicecount, amdavailable, applegpuavailable, qualcommavailable, gpuvendor";
 
         private static readonly JsonSerializerOptions _JsonOptions = BuildJsonOptions();
         private readonly SqliteDatabaseDriver _Driver;
@@ -220,9 +220,31 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 parameters.Add(new SqliteParameter("@gpuuuid", request.GpuUuid.Trim()));
             }
 
+            if (request.GpuVendor.HasValue)
+            {
+                clauses.Add("EXISTS (SELECT 1 FROM telemetry_gpu_samples g WHERE g.sampleid = telemetry_samples.id AND g.vendor = @gpuvendor)");
+                parameters.Add(new SqliteParameter("@gpuvendor", Converters.ToVendorString(request.GpuVendor.Value)));
+            }
+
             string whereClause = "WHERE " + String.Join(" AND ", clauses);
             string bucketExpression = "datetime(((CAST(strftime('%s', collectedutc) AS INTEGER) - @startUnix) / @bucketSeconds) * @bucketSeconds + @startUnix, 'unixepoch')";
-            string gpuMetricFilter = String.IsNullOrWhiteSpace(request.GpuUuid) ? String.Empty : " AND g.uuid = @gpuuuid";
+            string gpuMetricFilter = String.Empty;
+            if (!String.IsNullOrWhiteSpace(request.GpuUuid)) gpuMetricFilter += " AND g.uuid = @gpuuuid";
+            if (request.GpuVendor.HasValue) gpuMetricFilter += " AND g.vendor = @gpuvendor";
+
+            string gpuDevices = "gpudevicecount";
+            string gpuUtilization = "gpuaverageutilizationpercent";
+            string gpuMemoryUtilization = "gpuaveragememoryutilizationpercent";
+            string gpuTemperature = "gpuaveragetemperaturecelsius";
+            string gpuPower = "gputotalpowerusagewatts";
+            if (request.GpuVendor.HasValue)
+            {
+                gpuDevices = GpuSubquery("COUNT(*)", gpuMetricFilter);
+                gpuUtilization = GpuSubquery("AVG(g.gpuutilizationpercent)", gpuMetricFilter);
+                gpuMemoryUtilization = GpuSubquery("AVG(CASE WHEN g.memorytotalmegabytes > 0 THEN g.memoryutilizationpercent END)", gpuMetricFilter);
+                gpuTemperature = GpuSubquery("AVG(CASE WHEN g.temperaturecelsius > 0 THEN g.temperaturecelsius END)", gpuMetricFilter);
+                gpuPower = GpuSubquery("SUM(g.powerusagewatts)", gpuMetricFilter);
+            }
 
             string sql =
                 "SELECT " + bucketExpression + " AS bucketutc, COUNT(*) AS samplecount, " +
@@ -232,19 +254,24 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 "AVG(networkreceivebytespersecond) AS avgnetrx, AVG(networktransmitbytespersecond) AS avgnettx, " +
                 "AVG(diskreadoperationspersecond) AS avgdiskread, AVG(diskwriteoperationspersecond) AS avgdiskwrite, " +
                 "AVG(diskreadqueuedepth) AS avgdiskreadqueue, AVG(diskwritequeuedepth) AS avgdiskwritequeue, " +
-                "AVG(gpudevicecount) AS avggpudevices, AVG(gpuaverageutilizationpercent) AS avggpu, " +
-                "MIN(gpuaverageutilizationpercent) AS mingpu, MAX(gpuaverageutilizationpercent) AS maxgpu, " +
-                "AVG(gpuaveragememoryutilizationpercent) AS avggpumem, " +
+                "AVG(" + gpuDevices + ") AS avggpudevices, AVG(" + gpuUtilization + ") AS avggpu, " +
+                "MIN(" + gpuUtilization + ") AS mingpu, MAX(" + gpuUtilization + ") AS maxgpu, " +
+                "AVG(" + gpuMemoryUtilization + ") AS avggpumem, " +
                 "AVG((SELECT SUM(g.memoryusedmegabytes) FROM telemetry_gpu_samples g WHERE g.sampleid = telemetry_samples.id" + gpuMetricFilter + ")) AS avggpumemusedmb, " +
                 "AVG((SELECT SUM(g.memorytotalmegabytes) FROM telemetry_gpu_samples g WHERE g.sampleid = telemetry_samples.id" + gpuMetricFilter + ")) AS avggpumemtotalmb, " +
-                "AVG(gpuaveragetemperaturecelsius) AS avggputemp, MIN(gpuaveragetemperaturecelsius) AS mingputemp, MAX(gpuaveragetemperaturecelsius) AS maxgputemp, " +
-                "AVG(gputotalpowerusagewatts) AS avggpupower, AVG(ollamaavailablemodelcount) AS avgollamaavailable, AVG(ollamaloadedmodelcount) AS avgollamaloaded, " +
+                "AVG(" + gpuTemperature + ") AS avggputemp, MIN(" + gpuTemperature + ") AS mingputemp, MAX(" + gpuTemperature + ") AS maxgputemp, " +
+                "AVG(" + gpuPower + ") AS avggpupower, AVG(ollamaavailablemodelcount) AS avgollamaavailable, AVG(ollamaloadedmodelcount) AS avgollamaloaded, " +
                 "AVG(vllmrunningrequests) AS avgvllmrunning, AVG(vllmwaitingrequests) AS avgvllmwaiting, " +
                 "AVG(vllmgpucacheusagepercent) AS avgvllmgpucache, AVG(utilyzedevicecount) AS avgutilyzedevices " +
                 "FROM telemetry_samples " + whereClause + " GROUP BY " + bucketExpression + " ORDER BY " + bucketExpression + ";";
 
             DataTable result = await _Driver.ExecuteQueryAsync(sql, token, parameters.ToArray()).ConfigureAwait(false);
             Dictionary<DateTime, TelemetryRollupBucket> bucketMap = BucketsFromTable(result, request.BucketMinutes);
+
+            if (request.IncludeGpuVendorBreakdown && bucketMap.Count > 0)
+            {
+                await ApplyGpuVendorBreakdownAsync(request, parameters, bucketMap, token).ConfigureAwait(false);
+            }
             DateTime alignedStartUtc = DateTimeOffset.FromUnixTimeSeconds(startUnix).UtcDateTime;
             List<TelemetryRollupBucket> buckets = request.IncludeEmptyBuckets
                 ? FillBuckets(alignedStartUtc, endUtc, request.BucketMinutes, bucketMap)
@@ -264,6 +291,95 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 TotalSamples = totalSamples,
                 Buckets = buckets
             };
+        }
+
+        private async Task ApplyGpuVendorBreakdownAsync(
+            TelemetryRollupRequest request,
+            List<SqliteParameter> rollupParameters,
+            Dictionary<DateTime, TelemetryRollupBucket> bucketMap,
+            CancellationToken token)
+        {
+            List<string> clauses = new List<string>
+            {
+                "g.collectedutc >= @startUtc",
+                "g.collectedutc < @endUtc",
+                "g.vendor IS NOT NULL"
+            };
+
+            if (!String.IsNullOrWhiteSpace(request.Hostname)) clauses.Add("g.hostname = @hostname");
+            if (!String.IsNullOrWhiteSpace(request.GpuUuid)) clauses.Add("g.uuid = @gpuuuid");
+            if (request.GpuVendor.HasValue) clauses.Add("g.vendor = @gpuvendor");
+
+            string bucketExpression = "datetime(((CAST(strftime('%s', g.collectedutc) AS INTEGER) - @startUnix) / @bucketSeconds) * @bucketSeconds + @startUnix, 'unixepoch')";
+
+            // Aggregate per (sample, vendor) first so memory and power are vendor totals per sample, then average per bucket.
+            string sql =
+                "SELECT bucketutc, vendor, COUNT(*) AS samplecount, AVG(devicecount) AS avgdevices, " +
+                "AVG(util) AS avgutil, MIN(util) AS minutil, MAX(util) AS maxutil, AVG(memutil) AS avgmemutil, " +
+                "AVG(memused) AS avgmemused, AVG(memtotal) AS avgmemtotal, " +
+                "AVG(temp) AS avgtemp, MIN(temp) AS mintemp, MAX(temp) AS maxtemp, AVG(power) AS avgpower, " +
+                "AVG(hotspot) AS avghotspot, AVG(gtt) AS avggtt, AVG(workingset) AS avgworkingset, MAX(thermal) AS maxthermal, AVG(budget) AS avgbudget " +
+                "FROM (" +
+                "SELECT g.sampleid, " + bucketExpression + " AS bucketutc, g.vendor AS vendor, COUNT(*) AS devicecount, " +
+                "AVG(g.gpuutilizationpercent) AS util, " +
+                "AVG(CASE WHEN g.memorytotalmegabytes > 0 THEN g.memoryutilizationpercent END) AS memutil, " +
+                "SUM(g.memoryusedmegabytes) AS memused, SUM(g.memorytotalmegabytes) AS memtotal, " +
+                "AVG(CASE WHEN g.temperaturecelsius > 0 THEN g.temperaturecelsius END) AS temp, SUM(g.powerusagewatts) AS power, " +
+                "AVG(g.hotspottemperaturecelsius) AS hotspot, SUM(g.gttusedmegabytes) AS gtt, MAX(g.workingsetmegabytes) AS workingset, " +
+                "MAX(g.thermalstate) AS thermal, SUM(g.memorybudgetmegabytes) AS budget " +
+                "FROM telemetry_gpu_samples g WHERE " + String.Join(" AND ", clauses) + " " +
+                "GROUP BY g.sampleid, g.vendor" +
+                ") GROUP BY bucketutc, vendor ORDER BY bucketutc, vendor;";
+
+            List<SqliteParameter> parameters = new List<SqliteParameter>();
+            foreach (SqliteParameter parameter in rollupParameters)
+            {
+                parameters.Add(new SqliteParameter(parameter.ParameterName, parameter.Value));
+            }
+
+            DataTable result = await _Driver.ExecuteQueryAsync(sql, token, parameters.ToArray()).ConfigureAwait(false);
+
+            foreach (DataRow row in result.Rows)
+            {
+                DateTime bucketStart = Converters.FromTimestamp(Converters.GetString(row, "bucketutc"));
+                if (!bucketMap.TryGetValue(bucketStart, out TelemetryRollupBucket? bucket))
+                {
+                    continue;
+                }
+
+                string vendor = Converters.GetString(row, "vendor");
+                if (String.IsNullOrWhiteSpace(vendor))
+                {
+                    continue;
+                }
+
+                bucket.GpuVendors ??= new Dictionary<string, GpuVendorRollup>(StringComparer.Ordinal);
+                bucket.GpuVendors[vendor] = new GpuVendorRollup
+                {
+                    SampleCount = Converters.GetNullableLong(row, "samplecount") ?? 0L,
+                    AverageDeviceCount = Converters.GetNullableDouble(row, "avgdevices"),
+                    AverageUtilizationPercent = Converters.GetNullableDouble(row, "avgutil"),
+                    MinUtilizationPercent = Converters.GetNullableDouble(row, "minutil"),
+                    MaxUtilizationPercent = Converters.GetNullableDouble(row, "maxutil"),
+                    AverageMemoryUtilizationPercent = Converters.GetNullableDouble(row, "avgmemutil"),
+                    AverageMemoryUsedMegabytes = Converters.GetNullableDouble(row, "avgmemused"),
+                    AverageMemoryTotalMegabytes = Converters.GetNullableDouble(row, "avgmemtotal"),
+                    AverageTemperatureCelsius = Converters.GetNullableDouble(row, "avgtemp"),
+                    MinTemperatureCelsius = Converters.GetNullableDouble(row, "mintemp"),
+                    MaxTemperatureCelsius = Converters.GetNullableDouble(row, "maxtemp"),
+                    AveragePowerUsageWatts = Converters.GetNullableDouble(row, "avgpower"),
+                    AverageHotspotTemperatureCelsius = Converters.GetNullableDouble(row, "avghotspot"),
+                    AverageGttUsedMegabytes = Converters.GetNullableDouble(row, "avggtt"),
+                    AverageWorkingSetMegabytes = Converters.GetNullableDouble(row, "avgworkingset"),
+                    MaxThermalState = Converters.GetNullableDouble(row, "maxthermal"),
+                    AverageMemoryBudgetMegabytes = Converters.GetNullableDouble(row, "avgbudget")
+                };
+            }
+        }
+
+        private static string GpuSubquery(string aggregate, string gpuMetricFilter)
+        {
+            return "(SELECT " + aggregate + " FROM telemetry_gpu_samples g WHERE g.sampleid = telemetry_samples.id" + gpuMetricFilter + ")";
         }
 
         public async Task<bool> DeleteAsync(string id, CancellationToken token = default)
@@ -312,6 +428,9 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 PersistedUtc = DateTime.UtcNow,
                 HostPlatform = snapshot.HostPlatform,
                 NvidiaAvailable = snapshot.NvidiaAvailable,
+                AmdAvailable = snapshot.AmdAvailable,
+                AppleGpuAvailable = snapshot.AppleGpuAvailable,
+                QualcommAvailable = snapshot.QualcommAvailable,
                 OllamaAvailable = snapshot.OllamaAvailable,
                 VllmAvailable = snapshot.VllmAvailable,
                 UtilyzeAvailable = snapshot.UtilyzeAvailable,
@@ -362,6 +481,7 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
             double gpuMemory = 0D;
             double gpuTemperature = 0D;
             double gpuPower = 0D;
+            int gpuPowerCount = 0;
             int gpuCount = 0;
             int gpuMemoryCount = 0;
             int gpuTemperatureCount = 0;
@@ -370,7 +490,11 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
             {
                 gpuCount++;
                 gpuUtilization += device.Metrics.GpuUtilizationPercent;
-                gpuPower += device.Metrics.PowerUsageWatts;
+                if (device.Metrics.PowerUsageWatts.HasValue)
+                {
+                    gpuPower += device.Metrics.PowerUsageWatts.Value;
+                    gpuPowerCount++;
+                }
 
                 if (device.Metrics.MemoryTotalMegabytes > 0D)
                 {
@@ -378,9 +502,9 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                     gpuMemoryCount++;
                 }
 
-                if (device.Metrics.TemperatureCelsius > 0D)
+                if (device.Metrics.TemperatureCelsius.HasValue && device.Metrics.TemperatureCelsius.Value > 0D)
                 {
-                    gpuTemperature += device.Metrics.TemperatureCelsius;
+                    gpuTemperature += device.Metrics.TemperatureCelsius.Value;
                     gpuTemperatureCount++;
                 }
             }
@@ -389,7 +513,8 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
             detail.GpuAverageUtilizationPercent = gpuCount > 0 ? gpuUtilization / gpuCount : null;
             detail.GpuAverageMemoryUtilizationPercent = gpuMemoryCount > 0 ? gpuMemory / gpuMemoryCount : null;
             detail.GpuAverageTemperatureCelsius = gpuTemperatureCount > 0 ? gpuTemperature / gpuTemperatureCount : null;
-            detail.GpuTotalPowerUsageWatts = gpuPower;
+            detail.GpuTotalPowerUsageWatts = gpuPowerCount > 0 ? gpuPower : null;
+            detail.GpuVendor = snapshot.Gpu.Vendor == GpuVendorEnum.Unknown ? null : snapshot.Gpu.Vendor;
         }
 
         private static void ApplyRuntimeSummary(TelemetrySnapshot snapshot, TelemetrySampleDetail detail)
@@ -421,7 +546,7 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 "@networkreceivebytespersecond, @networktransmitbytespersecond, @diskreadoperationspersecond, @diskwriteoperationspersecond, " +
                 "@diskreadqueuedepth, @diskwritequeuedepth, @gpudevicecount, @gpuaverageutilizationpercent, @gpuaveragememoryutilizationpercent, " +
                 "@gpuaveragetemperaturecelsius, @gputotalpowerusagewatts, @ollamaavailablemodelcount, @ollamaloadedmodelcount, @vllmrunningrequests, " +
-                "@vllmwaitingrequests, @vllmgpucacheusagepercent, @utilyzedevicecount, @snapshotjson);";
+                "@vllmwaitingrequests, @vllmgpucacheusagepercent, @utilyzedevicecount, @amdavailable, @applegpuavailable, @qualcommavailable, @gpuvendor, @snapshotjson);";
         }
 
         private static string BuildInsertGpuSampleQuery()
@@ -429,10 +554,14 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
             return "INSERT INTO telemetry_gpu_samples (" +
                 "id, sampleid, hostname, collectedutc, deviceindex, uuid, busid, model, driverversion, migprofile, gpuutilizationpercent, " +
                 "memoryusedmegabytes, memoryfreemegabytes, memorytotalmegabytes, memoryutilizationpercent, temperaturecelsius, powerusagewatts, " +
-                "smclockmhz, memoryclockmhz, xiderrors) VALUES (" +
+                "smclockmhz, memoryclockmhz, xiderrors, vendor, source, ordinal, unifiedmemory, hotspottemperaturecelsius, memorytemperaturecelsius, " +
+                "gttusedmegabytes, gtttotalmegabytes, uncorrectableeccerrors, partitionid, thermalstate, workingsetmegabytes, memorybudgetmegabytes, " +
+                "utilizationscope, vendordetailjson) VALUES (" +
                 "@id, @sampleid, @hostname, @collectedutc, @deviceindex, @uuid, @busid, @model, @driverversion, @migprofile, @gpuutilizationpercent, " +
                 "@memoryusedmegabytes, @memoryfreemegabytes, @memorytotalmegabytes, @memoryutilizationpercent, @temperaturecelsius, @powerusagewatts, " +
-                "@smclockmhz, @memoryclockmhz, @xiderrors);";
+                "@smclockmhz, @memoryclockmhz, @xiderrors, @vendor, @source, @ordinal, @unifiedmemory, @hotspottemperaturecelsius, @memorytemperaturecelsius, " +
+                "@gttusedmegabytes, @gtttotalmegabytes, @uncorrectableeccerrors, @partitionid, @thermalstate, @workingsetmegabytes, @memorybudgetmegabytes, " +
+                "@utilizationscope, @vendordetailjson);";
         }
 
         private static SqliteParameter[] BuildSampleParameters(TelemetrySampleDetail detail, string snapshotJson)
@@ -471,12 +600,33 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 Parameter("@vllmwaitingrequests", detail.VllmWaitingRequests),
                 Parameter("@vllmgpucacheusagepercent", detail.VllmGpuCacheUsagePercent),
                 Parameter("@utilyzedevicecount", detail.UtilyzeDeviceCount),
+                Parameter("@amdavailable", Converters.ToBoolean(detail.AmdAvailable)),
+                Parameter("@applegpuavailable", Converters.ToBoolean(detail.AppleGpuAvailable)),
+                Parameter("@qualcommavailable", Converters.ToBoolean(detail.QualcommAvailable)),
+                Parameter("@gpuvendor", detail.GpuVendor.HasValue ? Converters.ToVendorString(detail.GpuVendor.Value) : null),
                 Parameter("@snapshotjson", snapshotJson)
             };
         }
 
         private static SqliteParameter[] BuildGpuParameters(TelemetrySampleDetail detail, GpuDeviceTelemetry device)
         {
+            NvidiaGpuDeviceTelemetry? nvidia = device as NvidiaGpuDeviceTelemetry;
+            AmdGpuDeviceTelemetry? amd = device as AmdGpuDeviceTelemetry;
+            AppleGpuDeviceTelemetry? apple = device as AppleGpuDeviceTelemetry;
+            QualcommGpuDeviceTelemetry? qualcomm = device as QualcommGpuDeviceTelemetry;
+
+            double? memoryTemperature = amd?.MemoryTemperatureCelsius ?? nvidia?.MemoryTemperatureCelsius;
+            long? uncorrectableEcc = amd?.UncorrectableEccErrors ?? nvidia?.UncorrectableEccErrors;
+            double? memoryBudget = null;
+            if (qualcomm != null && (qualcomm.SharedMemoryBudgetMegabytes.HasValue || qualcomm.DedicatedMemoryBudgetMegabytes.HasValue))
+            {
+                memoryBudget = (qualcomm.SharedMemoryBudgetMegabytes ?? 0D) + (qualcomm.DedicatedMemoryBudgetMegabytes ?? 0D);
+            }
+
+            string? vendorDetailJson = device.GetType() == typeof(GpuDeviceTelemetry)
+                ? null
+                : JsonSerializer.Serialize(device, device.GetType(), _JsonOptions);
+
             return new SqliteParameter[]
             {
                 Parameter("@id", IdGenerator.NewTelemetryGpuSampleId()),
@@ -488,7 +638,7 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 Parameter("@busid", device.BusId),
                 Parameter("@model", device.Model),
                 Parameter("@driverversion", device.DriverVersion),
-                Parameter("@migprofile", device.MigProfile),
+                Parameter("@migprofile", nvidia?.MigProfile),
                 Parameter("@gpuutilizationpercent", device.Metrics.GpuUtilizationPercent),
                 Parameter("@memoryusedmegabytes", device.Metrics.MemoryUsedMegabytes),
                 Parameter("@memoryfreemegabytes", device.Metrics.MemoryFreeMegabytes),
@@ -498,7 +648,22 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 Parameter("@powerusagewatts", device.Metrics.PowerUsageWatts),
                 Parameter("@smclockmhz", device.Metrics.SmClockMHz),
                 Parameter("@memoryclockmhz", device.Metrics.MemoryClockMHz),
-                Parameter("@xiderrors", device.Metrics.XidErrors)
+                Parameter("@xiderrors", nvidia?.XidErrors),
+                Parameter("@vendor", Converters.ToVendorString(device.Vendor)),
+                Parameter("@source", Converters.ToSourceString(device.Source)),
+                Parameter("@ordinal", device.Ordinal),
+                Parameter("@unifiedmemory", Converters.ToBoolean(device.UnifiedMemory)),
+                Parameter("@hotspottemperaturecelsius", amd?.HotspotTemperatureCelsius),
+                Parameter("@memorytemperaturecelsius", memoryTemperature),
+                Parameter("@gttusedmegabytes", amd?.GttUsedMegabytes),
+                Parameter("@gtttotalmegabytes", amd?.GttTotalMegabytes),
+                Parameter("@uncorrectableeccerrors", uncorrectableEcc),
+                Parameter("@partitionid", amd?.PartitionId),
+                Parameter("@thermalstate", apple?.ThermalState.HasValue == true ? (int?)apple.ThermalState.Value : null),
+                Parameter("@workingsetmegabytes", apple?.RecommendedMaxWorkingSetMegabytes),
+                Parameter("@memorybudgetmegabytes", memoryBudget),
+                Parameter("@utilizationscope", qualcomm?.UtilizationScope?.ToString()),
+                Parameter("@vendordetailjson", vendorDetailJson)
             };
         }
 
@@ -517,6 +682,9 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 PersistedUtc = record.PersistedUtc,
                 HostPlatform = record.HostPlatform,
                 NvidiaAvailable = record.NvidiaAvailable,
+                AmdAvailable = record.AmdAvailable,
+                AppleGpuAvailable = record.AppleGpuAvailable,
+                QualcommAvailable = record.QualcommAvailable,
                 OllamaAvailable = record.OllamaAvailable,
                 VllmAvailable = record.VllmAvailable,
                 UtilyzeAvailable = record.UtilyzeAvailable,
@@ -533,6 +701,7 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 DiskReadQueueDepth = record.DiskReadQueueDepth,
                 DiskWriteQueueDepth = record.DiskWriteQueueDepth,
                 GpuDeviceCount = record.GpuDeviceCount,
+                GpuVendor = record.GpuVendor,
                 GpuAverageUtilizationPercent = record.GpuAverageUtilizationPercent,
                 GpuAverageMemoryUtilizationPercent = record.GpuAverageMemoryUtilizationPercent,
                 GpuAverageTemperatureCelsius = record.GpuAverageTemperatureCelsius,
@@ -600,6 +769,9 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
                 parameters.Add(new SqliteParameter("@hostplatform", filter.HostPlatform.Value.ToString()));
             }
             AddBooleanClause(clauses, parameters, "nvidiaavailable", "@nvidiaavailable", filter.NvidiaAvailable);
+            AddBooleanClause(clauses, parameters, "amdavailable", "@amdavailable", filter.AmdAvailable);
+            AddBooleanClause(clauses, parameters, "applegpuavailable", "@applegpuavailable", filter.AppleGpuAvailable);
+            AddBooleanClause(clauses, parameters, "qualcommavailable", "@qualcommavailable", filter.QualcommAvailable);
             AddBooleanClause(clauses, parameters, "ollamaavailable", "@ollamaavailable", filter.OllamaAvailable);
             AddBooleanClause(clauses, parameters, "vllmavailable", "@vllmavailable", filter.VllmAvailable);
             AddBooleanClause(clauses, parameters, "utilyzeavailable", "@utilyzeavailable", filter.UtilyzeAvailable);
@@ -617,6 +789,12 @@ namespace RigMonitor.Core.Database.Sqlite.Implementations
             {
                 clauses.Add("EXISTS (SELECT 1 FROM telemetry_gpu_samples g WHERE g.sampleid = telemetry_samples.id AND g.uuid = @gpuuuid)");
                 parameters.Add(new SqliteParameter("@gpuuuid", filter.GpuUuid.Trim()));
+            }
+
+            if (filter.GpuVendor.HasValue)
+            {
+                clauses.Add("EXISTS (SELECT 1 FROM telemetry_gpu_samples g WHERE g.sampleid = telemetry_samples.id AND g.vendor = @gpuvendor)");
+                parameters.Add(new SqliteParameter("@gpuvendor", Converters.ToVendorString(filter.GpuVendor.Value)));
             }
 
             if (!String.IsNullOrWhiteSpace(filter.GpuModel))

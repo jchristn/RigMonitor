@@ -29,9 +29,29 @@ namespace RigMonitor.Core.Models
         public string? GpuModel { get; set; } = null;
 
         /// <summary>
+        /// Optional GPU vendor filter; matches samples with at least one device from this vendor.
+        /// </summary>
+        public GpuVendorEnum? GpuVendor { get; set; } = null;
+
+        /// <summary>
         /// Optional NVIDIA availability filter.
         /// </summary>
         public bool? NvidiaAvailable { get; set; } = null;
+
+        /// <summary>
+        /// Optional AMD availability filter.
+        /// </summary>
+        public bool? AmdAvailable { get; set; } = null;
+
+        /// <summary>
+        /// Optional Apple GPU availability filter.
+        /// </summary>
+        public bool? AppleGpuAvailable { get; set; } = null;
+
+        /// <summary>
+        /// Optional Qualcomm availability filter.
+        /// </summary>
+        public bool? QualcommAvailable { get; set; } = null;
 
         /// <summary>
         /// Optional Ollama availability filter.

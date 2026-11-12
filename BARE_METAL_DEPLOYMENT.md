@@ -92,6 +92,34 @@ Full DCGM exporter setup and troubleshooting is documented in [INSTALLING_DCGM.m
 
 On GB10 unified-memory systems, framebuffer counters may report zero because GPU memory is shared with system RAM. RigMonitor falls back to host physical memory for GPU RAM display on GB10 and marks that memory as shared.
 
+## AMD GPU Telemetry Prerequisite
+
+RigMonitor reads AMD GPUs in-process through the ROCm AMD SMI library (`libamd_smi.so`), filling gaps from `amdgpu` sysfs. Without ROCm it reads sysfs alone, which needs only the `amdgpu` kernel driver.
+
+1. Optionally install ROCm for the richest data (ECC, partitions, hotspot and memory temperatures on all parts).
+2. Give the service account access to the GPU device nodes:
+
+   ```bash
+   sudo usermod -aG render,video rigmonitor
+   ```
+
+3. In the systemd unit below, keep `SupplementaryGroups=render video`, and keep `Environment=LD_LIBRARY_PATH=/opt/rocm/lib` when ROCm is installed.
+
+Verify:
+
+```bash
+ls /opt/rocm/lib/libamd_smi.so*
+cat /sys/class/drm/card*/device/gpu_busy_percent
+curl -fsS http://127.0.0.1:9990/v1/capabilities | grep -i amd
+curl -fsS 'http://127.0.0.1:9990/v1/telemetry?amd'
+```
+
+Full AMD setup and troubleshooting is documented in [INSTALLING_AMD_GPU_TELEMETRY.md](./INSTALLING_AMD_GPU_TELEMETRY.md).
+
+## Qualcomm GPU Telemetry on Linux
+
+On Arm64 Linux hosts with a Qualcomm Adreno GPU (upstream `drm/msm` or a downstream `kgsl` kernel), RigMonitor reads devfreq, thermal zones, and DRM fdinfo with no extra setup. Utilization from fdinfo covers only processes the service account can read; see [QUALCOMM_GPU_TELEMETRY.md](./QUALCOMM_GPU_TELEMETRY.md).
+
 ## Build and Publish
 
 Run these commands from the repository root.
@@ -225,6 +253,10 @@ Wants=network-online.target
 Type=simple
 User=rigmonitor
 Group=rigmonitor
+# GPU device access for AMD (and other DRM devices). Remove groups that do not exist on this host.
+SupplementaryGroups=render video
+# Keep when ROCm is installed so libamd_smi.so and its dependencies resolve.
+Environment=LD_LIBRARY_PATH=/opt/rocm/lib
 WorkingDirectory=/opt/rigmonitor
 ExecStart=/usr/bin/dotnet /opt/rigmonitor/RigMonitor.Server.dll --settings /etc/rigmonitor/rigmonitor.json
 Restart=on-failure
@@ -315,10 +347,10 @@ Verify NVIDIA telemetry when expected:
 ```bash
 curl -fsS http://127.0.0.1:9400/metrics | grep -E 'DCGM_FI_DEV_(GPU_UTIL|FB_USED|FB_FREE|FB_TOTAL|GPU_TEMP)' | head
 curl -fsS http://127.0.0.1:9990/v1/capabilities | grep -i nvidia
-curl -fsS 'http://127.0.0.1:9990/v1/telemetry?gpu'
+curl -fsS 'http://127.0.0.1:9990/v1/telemetry?nvidia'
 ```
 
-The dashboard should show `GPU RAM` when memory data is available. GB10 systems should show shared GPU RAM.
+The dashboard shows a section for each GPU vendor (NVIDIA, AMD, Apple, Qualcomm) and a `GPU RAM` card when memory data is available. GB10 systems show shared GPU RAM.
 The analytics page should be reachable at `http://<host>:9990/dashboard/analytics` after at least one persisted sample has been collected.
 
 ## Upgrade

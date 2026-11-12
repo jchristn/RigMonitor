@@ -237,7 +237,9 @@ namespace RigMonitor.Core.Database.Sqlite
 
             for (int i = 0; i < reader.FieldCount; i++)
             {
-                DataColumn column = new DataColumn(reader.GetName(i), reader.GetFieldType(i));
+                // Expression columns (aggregates over subqueries) have no declared type, and GetFieldType reports byte[] for them
+                // before the first row is read. Untyped columns keep the raw SQLite values, which the converters handle.
+                DataColumn column = new DataColumn(reader.GetName(i), typeof(object));
                 column.AllowDBNull = true;
                 table.Columns.Add(column);
             }

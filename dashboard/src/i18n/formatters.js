@@ -114,3 +114,43 @@ export function formatElapsedMs(value) {
 
   return formatDuration(value)
 }
+
+export function hasNumber(value) {
+  return value != null && typeof value === 'number' && !Number.isNaN(value)
+}
+
+export function formatOptional(value, unit = '', maximumFractionDigits = 1) {
+  if (!hasNumber(value)) {
+    return '—'
+  }
+
+  const formatted = formatNumber(value, { maximumFractionDigits })
+  return unit ? `${formatted} ${unit}` : formatted
+}
+
+export function formatMegabytes(value) {
+  return hasNumber(value) ? formatBytes(value * 1024 * 1024) : '—'
+}
+
+export function formatMemoryRange(usedMegabytes, totalMegabytes, sharedLabel = '') {
+  if (!hasNumber(totalMegabytes) || totalMegabytes <= 0) {
+    return '—'
+  }
+
+  const suffix = sharedLabel ? ` (${sharedLabel})` : ''
+  return `${formatMegabytes(usedMegabytes || 0)} / ${formatMegabytes(totalMegabytes)}${suffix}`
+}
+
+export const thermalStateOrder = ['nominal', 'fair', 'serious', 'critical']
+
+export function thermalStateTone(state) {
+  if (state === 'serious') {
+    return 'warning'
+  }
+
+  if (state === 'critical') {
+    return 'danger'
+  }
+
+  return state ? 'success' : ''
+}

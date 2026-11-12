@@ -143,7 +143,7 @@ Outcome values used across the catalog: `ok`, `error`, `timeout` (a deadline ela
 | `rigmonitor.section.collections` | `rigmonitor_section_collections_total` | Counter | {collection} | `rigmonitor.section`, `rigmonitor.section.status` | Section collections by status. |
 | `rigmonitor.section.last_success` | `rigmonitor_section_last_success_seconds` | Gauge | s | `rigmonitor.section` | Unix time of the last successful collection per section. |
 
-`rigmonitor.section`: `system`, `cpu`, `memory`, `network`, `disk`, `gpu`, `ollama`, `vllm`, `utilyze`.
+`rigmonitor.section`: `system`, `cpu`, `memory`, `network`, `disk`, `gpu`, `nvidia`, `amd`, `apple`, `qualcomm`, `ollama`, `vllm`, `utilyze`. The vendor sections are collected in parallel; `gpu` is derived from them and records the aggregate status and the wall time of the parallel vendor collection.
 `rigmonitor.section.status`: `ok`, `unavailable`, `error`, `timeout`, `unsupported`, `disabled`.
 
 ### Background collector pipeline and retention
@@ -178,6 +178,12 @@ Outcome values used across the catalog: `ok`, `error`, `timeout` (a deadline ela
 | `rigmonitor.integration.service` | `rigmonitor.integration.operation` values |
 |---|---|
 | `dcgm` | `metrics` |
+| `amdMetricsExporter` | `metrics` |
+| `amdSmiLibrary` | `init`, `sample` (in-process, `Internal` kind) |
+| `amdSysfs` | `probe`, `read` (`Internal`) |
+| `appleNative` | `ioKit` (`Internal`) |
+| `windowsGraphics` | `dxgi` (`Internal`) |
+| `qualcommLinux` | `probe`, `read` (`Internal`) |
 | `ollama` | `probe`, `version`, `tags`, `ps` |
 | `vllm` | `metrics` |
 | `utilyze` | `health`, `connect` |
@@ -190,7 +196,9 @@ Outcome values used across the catalog: `ok`, `error`, `timeout` (a deadline ela
 |---|---|---|---|---|---|
 | `rigmonitor.errors` | `rigmonitor_errors_total` | Counter | {error} | `rigmonitor.component`, `error.type` | Errors by component and exception type name (or a bounded outcome such as `http_error`). |
 | `rigmonitor.startup.duration` | `rigmonitor_startup_duration_seconds` | Histogram | s | `outcome` | Startup initialization (capability probe, warmup, database init). |
-| `rigmonitor.capability.available` | `rigmonitor_capability_available` | Gauge | 1 | `rigmonitor.capability` (`nvidia`, `ollama`, `vllm`, `utilyze`) | Capabilities detected at startup. |
+| `rigmonitor.capability.available` | `rigmonitor_capability_available` | Gauge | 1 | `rigmonitor.capability` (`nvidia`, `amd`, `apple`, `qualcomm`, `ollama`, `vllm`, `utilyze`) | Capabilities detected at startup. |
+| `rigmonitor.gpu.native.feature.available` | `rigmonitor_gpu_native_feature_available` | Gauge | 1 | `rigmonitor.gpu.feature` (`amdSmiLibrary`, `amdSysfs`, `ioKit`, `metal`, `processInfo`, `ioReport`, `hidSensors`, `dxgi`, `pdh`, `d3dkmtPerfData`, `drmMsm`, `kgsl`) | Whether each native GPU source loaded. Use it to spot hosts where a macOS or driver update disabled a source. |
+| `rigmonitor.gpu.native.errors` | `rigmonitor_gpu_native_errors_total` | Counter | {error} | `rigmonitor.gpu.vendor` (`amd`, `apple`, `qualcomm`), `rigmonitor.gpu.feature` | Failures inside native GPU sources (the section usually still succeeds with fewer fields). |
 | `rigmonitor.telemetry.warm` | `rigmonitor_telemetry_warm` | Gauge | 1 | none | Samplers warm (1) or warming (0). |
 | `rigmonitor.build.info` | `rigmonitor_build_info` | Gauge | 1 | `rigmonitor.version`, `process.runtime.version` | Always 1. |
 | `rigmonitor.config.collection_interval` | `rigmonitor_config_collection_interval_seconds` | Gauge | s | none | `persistence.collectionIntervalMs`. |
@@ -215,14 +223,14 @@ With `includeRuntimeMetrics`, Radiant adds the .NET runtime meter (`dotnet_gc_co
 |---|---|---|---|---|
 | `{METHOD} {route}` (Watson) | Server | inbound `traceparent`, else root | `http.request.method`, `http.route`, `http.response.status_code`, `url.scheme`, client address | Error on 5xx or unhandled exception |
 | `telemetry.snapshot` | Internal | Watson server span, or `stage:collect` | `rigmonitor.snapshot.scope`, `outcome` | Ok; Error with exception on failure; unset on cancellation |
-| `stage:<section>` (`stage:cpu`, `stage:gpu`, ...) | Internal | `telemetry.snapshot` | `rigmonitor.section`, `rigmonitor.section.status`, `error.type` | Ok; Error for `error`, `timeout`, `unavailable` |
+| `stage:<section>` (`stage:cpu`, `stage:gpu`, ...; `stage:nvidia`, `stage:amd`, `stage:apple`, `stage:qualcomm` are children of `stage:gpu` when the aggregate is requested) | Internal | `telemetry.snapshot` | `rigmonitor.section`, `rigmonitor.section.status`, `error.type` | Ok; Error for `error`, `timeout`, `unavailable` |
 | `collector.job` | Internal | **root** (one trace per job) | `rigmonitor.collector.trigger` (`startup`, `timer`), `rigmonitor.persistence.hostname`, `outcome`, `rigmonitor.failed_stage` | Ok or Error |
 | `stage:queued` | Internal | `collector.job` | none (start time backdated to the scheduled tick) | Ok |
 | `stage:collect` | Internal | `collector.job` | none; contains `telemetry.snapshot` | Ok or Error |
 | `stage:persist` | Internal | `collector.job` | `rigmonitor.sample.id`; contains `sqlite create` | Ok or Error |
 | `retention.run` | Internal | **root** | `rigmonitor.retention.days`, `rigmonitor.retention.deleted` | Ok or Error |
 | `rigmonitor.startup` | Internal | root | `rigmonitor.version` | Ok or Error |
-| `capabilities.probe` | Internal | `rigmonitor.startup` | `rigmonitor.capability.<name>` booleans | Ok or Error |
+| `capabilities.probe` | Internal | `rigmonitor.startup` | `rigmonitor.capability.<name>` booleans (including `amd`, `apple`, `qualcomm`); GPU vendors are probed in parallel | Ok or Error |
 | `telemetry.warmup` | Internal | `rigmonitor.startup` | `rigmonitor.warmup.delay_ms` | Ok or Error |
 | `<service> <operation>` (`dcgm metrics`, `ollama tags`, `vllm metrics`, `utilyze health`, `utilyze connect`, `sqlite rollup`, ...) | Client | caller | `rigmonitor.integration.service`, `rigmonitor.integration.operation`, `outcome`, `server.address`, `server.port`, `url.scheme`, `http.response.status_code`, `db.system.name`, `db.operation.name` | Ok; Error with exception or `error.type` |
 | `process <executable>` | Internal | caller | `process.executable.name`, `process.exit.code` | Error on non-zero exit |

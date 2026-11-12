@@ -66,18 +66,40 @@ Example:
   "hostPlatform": "windows",
   "dashboardEnabled": true,
   "telemetryWarm": true,
+  "hideUnsupportedGpuSections": false,
   "nvidiaAvailable": false,
+  "amdAvailable": false,
+  "appleGpuAvailable": true,
+  "qualcommAvailable": false,
+  "gpuAvailable": true,
+  "appleFeatures": ["ioKit", "metal", "processInfo", "ioReport", "hidSensors"],
+  "gpuProviders": [
+    { "vendor": "nvidia", "available": false, "endpoint": "http://localhost:9400/metrics", "detail": "DCGM exporter is unreachable or does not emit DCGM_FI_DEV metrics.", "features": [] },
+    { "vendor": "amd", "available": false, "detail": "AMD telemetry is supported on Linux and Windows.", "features": [] },
+    { "vendor": "apple", "available": true, "source": "appleNative", "endpoint": "ioKit", "detail": "Apple M5 Max", "features": ["ioKit", "metal", "processInfo", "ioReport", "hidSensors"] },
+    { "vendor": "qualcomm", "available": false, "detail": "Qualcomm telemetry is supported on Windows and Linux.", "features": [] }
+  ],
   "ollamaAvailable": true,
   "vllmEnabled": false,
   "vllmAvailable": false,
   "utilyzeEnabled": false,
   "utilyzeAvailable": false,
   "dcgmExporterUrl": "http://localhost:9400/metrics",
+  "amdMetricsExporterUrl": "http://localhost:5000/metrics",
   "ollamaBaseUrl": "http://localhost:11434",
   "vllmMetricsUrl": "http://localhost:8000/metrics",
   "utilyzeLiveUrl": "ws://127.0.0.1:8079/live"
 }
 ```
+
+GPU capability fields:
+
+- `nvidiaAvailable`, `amdAvailable`, `appleGpuAvailable`, `qualcommAvailable`: whether each vendor was detected at startup.
+- `gpuAvailable`: whether any vendor was detected.
+- `amdSource`, `qualcommSource`: the resolved source (for example `amdSmiLibrary`, `amdSysfs`, `amdMetricsExporter`, `windowsGraphicsKernel`, `drmMsm`, `kgsl`); omitted when the vendor is unavailable.
+- `appleFeatures`: native macOS features that loaded (`ioKit`, `metal`, `processInfo`, `ioReport`, `hidSensors`).
+- `gpuProviders`: the probe result for every vendor, including the reason a vendor is unavailable.
+- `hideUnsupportedGpuSections`: the dashboard default from `Dashboard.HideUnsupportedGpuSections`.
 
 ### `GET /v1/telemetry`
 
@@ -88,6 +110,9 @@ Top-level fields:
 - `collectedUtc`
 - `hostPlatform`
 - `nvidiaAvailable`
+- `amdAvailable`
+- `appleGpuAvailable`
+- `qualcommAvailable`
 - `ollamaAvailable`
 - `vllmAvailable`
 - `utilyzeAvailable`
@@ -98,6 +123,10 @@ Top-level fields:
 - `network`
 - `disk`
 - `gpu`
+- `nvidia`
+- `amd`
+- `apple`
+- `qualcomm`
 - `ollama`
 - `vllm`
 - `utilyze`
@@ -190,6 +219,10 @@ Example:
 - `collection.network`
 - `collection.disk`
 - `collection.gpu`
+- `collection.nvidia`
+- `collection.amd`
+- `collection.apple`
+- `collection.qualcomm`
 - `collection.ollama`
 - `collection.vllm`
 - `collection.utilyze`
@@ -223,6 +256,13 @@ Section-state matrix:
 | Latest success aged past `Telemetry.SectionStaleAfterMs` and a current request did not succeed | omitted | `stale` | `stale` |
 | Current request succeeded | present | `ok` | `fresh` |
 
+`collection.gpu` is derived from the vendor sections rather than collected on its own:
+
+- `supported` is `true` when any vendor is supported.
+- `statusCode` is `ok` when at least one requested, supported vendor returned data. Otherwise it is the most severe vendor status, in the order `error` > `stale` > `unavailable` > `unsupported`.
+- `lastAttemptUtc`, `lastSuccessUtc`, and `lastDurationMs` are the latest (or longest) values across vendors; vendors are collected in parallel.
+- `message` appends the vendors that are not `ok` (for example `"... (amd: error)"`), and `lastError` joins vendor errors.
+
 #### Selective telemetry query parameters
 
 Recognized selector keys:
@@ -233,6 +273,10 @@ Recognized selector keys:
 - `network`
 - `disk`
 - `gpu`
+- `nvidia`
+- `amd`
+- `apple`
+- `qualcomm`
 - `ollama`
 - `vllm`
 - `utilyze`
@@ -243,6 +287,14 @@ Rules:
 - Presence of a key means `true`.
 - A key set to `=false` means `false`.
 - Once one or more recognized selector keys are present, unspecified recognized sections are treated as `false`.
+- `gpu` collects every vendor internally but emits only the aggregate. `nvidia`, `amd`, `apple`, and `qualcomm` emit their vendor sections. A vendor that is collected only to build the aggregate reports `disabled` in its own collection entry.
+
+| Request | Emitted GPU sections |
+|---------|----------------------|
+| no selectors | `gpu`, `nvidia`, `amd`, `apple`, `qualcomm` |
+| `?gpu` | `gpu` |
+| `?amd` | `amd` |
+| `?gpu&apple` | `gpu`, `apple` |
 
 Example request:
 
@@ -283,7 +335,8 @@ Even when a section is omitted by selector, its collection metadata remains pres
 
 #### Optional sections
 
-- `gpu` is present only when NVIDIA telemetry is supported, requested, and a current sample succeeds.
+- `nvidia`, `amd`, `apple`, and `qualcomm` are present only when that vendor is supported, requested, and a current sample succeeds.
+- `gpu` is present when it is requested and at least one vendor returned a device.
 - `ollama` is present only when Ollama is supported, requested, and a current sample succeeds.
 - `vllm` is present only when vLLM telemetry is enabled, reachable, requested, and a current metrics scrape succeeds.
 - `utilyze` is present only when Utilyze is enabled, reachable, requested, and has a fresh live sample.
@@ -354,40 +407,184 @@ Stale Ollama section after a previous success:
 }
 ```
 
-The `gpu` object contains:
+#### GPU sections
 
-- `vendor`
-- `exporterEndpoint`
-- `devices`
+Every GPU device, in every section, shares a common shape:
 
-Each `gpu.devices[]` object contains:
+- `ordinal`: zero-based position across all vendors on the host
+- `deviceIndex`: index reported by the vendor source
+- `vendor`: `nvidia`, `amd`, `apple`, `qualcomm`, or `intel`
+- `source`: `dcgmExporter`, `amdSmiLibrary`, `amdSysfs`, `amdMetricsExporter`, `appleNative`, `windowsGraphicsKernel`, `drmMsm`, or `kgsl`
+- `uuid`, `busId`, `model`, `driverVersion`
+- `unifiedMemory`: whether the device uses memory shared with the host
+- `metrics`:
+  - `gpuUtilizationPercent`
+  - `memoryUsedMegabytes`, `memoryFreeMegabytes`, `memoryTotalMegabytes`, `memoryUtilizationPercent`
+  - `memorySource` (`framebuffer`, `vram`, `vramPlusGtt`, `unifiedSystemMemory`, `sharedSystemMemory`, `dedicatedVideoMemory`) and `memoryShared`
+  - `temperatureCelsius`, `powerUsageWatts`, `smClockMHz` (the primary compute clock for every vendor), `memoryClockMHz`
 
-- `deviceIndex`
-- `uuid`
-- `busId`
-- `model`
-- `driverVersion`
-- `migProfile`
-- `metrics`
+Optional metrics are omitted when the source cannot provide them. They are never reported as `0` in place of "unknown".
 
-The `gpu.devices[].metrics` object contains:
+| Metric | NVIDIA | AMD | Apple | Qualcomm |
+|--------|--------|-----|-------|----------|
+| `gpuUtilizationPercent` | yes | yes | yes (device utilization) | yes (busiest 3D/compute engine on Windows; fdinfo or kgsl on Linux) |
+| memory | framebuffer | VRAM (VRAM + GTT on APUs) | unified memory in use / host memory | shared + dedicated usage / budget |
+| `temperatureCelsius` | yes | edge, else hotspot | GPU sensors, else SoC die sensors | driver perf data or thermal zones |
+| `powerUsageWatts` | yes | yes | yes (IOReport) | no |
+| `smClockMHz` | SM clock | graphics clock | weighted active frequency | current frequency |
+| `memoryClockMHz` | yes | yes | no | Windows perf data only |
 
-- `gpuUtilizationPercent`
-- `memoryUsedMegabytes`
-- `memoryFreeMegabytes`
-- `memoryTotalMegabytes`
-- `memoryUtilizationPercent`
-- `memorySource`
-- `memoryShared`
-- `temperatureCelsius`
-- `powerUsageWatts`
-- `smClockMHz`
-- `memoryClockMHz`
-- `xidErrors`
+`gpu` (the aggregate) contains `vendor` (`nvidia`, `amd`, `apple`, `qualcomm`, or `mixed`), `vendors` (vendors present), and `devices` in the common shape only, ordered by vendor then index. The device objects are the same ones reported in the vendor sections.
 
-`memoryTotalMegabytes` is read from `DCGM_FI_DEV_FB_TOTAL` when present. If the exporter does not emit that metric, RigMonitor derives total framebuffer memory from `DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE`.
+`nvidia` contains `source` (`dcgmExporter`), `endpoint`, and `devices`. NVIDIA devices add `migProfile`, `xidErrors`, `memoryTemperatureCelsius`, `memoryCopyUtilizationPercent`, and `uncorrectableEccErrors`. `memoryTotalMegabytes` is read from `DCGM_FI_DEV_FB_TOTAL` when present, otherwise derived from `DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE`. MIG instances are reported as separate devices.
 
-On GB10 unified-memory systems where DCGM reports zero framebuffer memory, RigMonitor reports host physical memory in the GPU memory fields and sets `memorySource` to `unifiedSystemMemory` with `memoryShared` set to `true`.
+`amd` contains `source`, `gapFillSource` (`amdSysfs` when sysfs filled fields the AMD SMI library could not provide), `libraryVersion`, `endpoint`, and `devices`. AMD devices add `hotspotTemperatureCelsius`, `memoryTemperatureCelsius`, `memoryActivityPercent`, `multimediaActivityPercent`, `gttUsedMegabytes`, `gttTotalMegabytes`, `correctableEccErrors`, `uncorrectableEccErrors`, `partitionId`, `computePartition`, `memoryPartition`, and `fieldSources` (field name to the source that supplied it).
+
+`apple` contains `source` (`appleNative`), `chip`, `gpuCoreCount`, `metalFamily` (for example `apple10`), `thermalState` (`nominal`, `fair`, `serious`, `critical`), `temperatureSource` (`gpuSensors` or `socDie`), `hostMemoryTotalMegabytes`, `recommendedMaxWorkingSetMegabytes` (Metal's recommended GPU working set), `wiredLimitMegabytes` (`iogpu.wired_limit_mb`, omitted when the OS default applies), `features`, and `devices`. Apple devices add `gpuCoreCount`, `rendererUtilizationPercent`, `tilerUtilizationPercent`, `allocatedSystemMemoryMegabytes`, `activeResidencyPercent`, `maxTemperatureCelsius`, `recommendedMaxWorkingSetMegabytes`, and `thermalState`.
+
+`qualcomm` contains `source`, `endpoint`, and `devices`. Qualcomm devices add `adapterLuid`, `dxgiDeviceId` (Windows), `compatible` (Linux device tree), `utilizationScope` (`device`, `allProcesses`, or `ownProcesses`; on Linux, fdinfo only covers processes RigMonitor may read), `engineUtilization` (`3d`, `compute`, `copy`, `videoDecode`, `videoEncode`, ...), `sharedMemoryUsedMegabytes`, `sharedMemoryBudgetMegabytes`, `dedicatedMemoryUsedMegabytes`, `dedicatedMemoryBudgetMegabytes`, `currentFrequencyMHz`, `maxFrequencyMHz`, `maxTemperatureCelsius`, and `fieldSources`.
+
+Unified memory: when a device flagged `unifiedMemory` does not report a capacity, RigMonitor fills `memoryTotalMegabytes` from host physical memory (and `memoryUsedMegabytes` too when the device reports no usage), sets `memorySource` to `unifiedSystemMemory`, and sets `memoryShared` to `true`. This covers NVIDIA GB10 / DGX Spark.
+
+Example (Apple Silicon):
+
+```json
+{
+  "gpu": {
+    "vendor": "apple",
+    "vendors": ["apple"],
+    "devices": [
+      {
+        "ordinal": 0,
+        "deviceIndex": 0,
+        "vendor": "apple",
+        "source": "appleNative",
+        "uuid": "AGXAcceleratorG17X/0",
+        "busId": "AGXAcceleratorG17X",
+        "model": "Apple M5 Max",
+        "driverVersion": "Unix 26.6.0",
+        "unifiedMemory": true,
+        "metrics": {
+          "gpuUtilizationPercent": 14,
+          "memoryUsedMegabytes": 1684.03,
+          "memoryFreeMegabytes": 129387.97,
+          "memoryTotalMegabytes": 131072,
+          "memoryUtilizationPercent": 1.28,
+          "memorySource": "unifiedSystemMemory",
+          "memoryShared": true,
+          "temperatureCelsius": 63.98,
+          "powerUsageWatts": 0.29,
+          "smClockMHz": 338
+        }
+      }
+    ]
+  },
+  "apple": {
+    "source": "appleNative",
+    "chip": "Apple M5 Max",
+    "gpuCoreCount": 40,
+    "metalFamily": "apple10",
+    "thermalState": "fair",
+    "temperatureSource": "socDie",
+    "hostMemoryTotalMegabytes": 131072,
+    "recommendedMaxWorkingSetMegabytes": 110100.48,
+    "features": ["ioKit", "metal", "processInfo", "ioReport", "hidSensors"],
+    "devices": [
+      {
+        "ordinal": 0,
+        "deviceIndex": 0,
+        "vendor": "apple",
+        "source": "appleNative",
+        "model": "Apple M5 Max",
+        "unifiedMemory": true,
+        "gpuCoreCount": 40,
+        "rendererUtilizationPercent": 14,
+        "tilerUtilizationPercent": 11,
+        "allocatedSystemMemoryMegabytes": 6356.83,
+        "activeResidencyPercent": 31.86,
+        "maxTemperatureCelsius": 66.51,
+        "recommendedMaxWorkingSetMegabytes": 110100.48,
+        "thermalState": "fair",
+        "metrics": { "gpuUtilizationPercent": 14, "memoryUsedMegabytes": 1684.03, "memoryTotalMegabytes": 131072, "powerUsageWatts": 0.29, "smClockMHz": 338, "temperatureCelsius": 63.98 }
+      }
+    ]
+  }
+}
+```
+
+Example (AMD with the native library and sysfs gap-fill):
+
+```json
+{
+  "amd": {
+    "source": "amdSmiLibrary",
+    "gapFillSource": "amdSysfs",
+    "libraryVersion": "6.4.0",
+    "endpoint": "/opt/rocm/lib/libamd_smi.so",
+    "devices": [
+      {
+        "ordinal": 0,
+        "deviceIndex": 0,
+        "vendor": "amd",
+        "source": "amdSmiLibrary",
+        "uuid": "uuid-0",
+        "busId": "0000:0c:00.0",
+        "model": "AMD Instinct MI300X",
+        "unifiedMemory": false,
+        "computePartition": "SPX",
+        "memoryPartition": "NPS1",
+        "hotspotTemperatureCelsius": 75,
+        "memoryTemperatureCelsius": 60,
+        "memoryActivityPercent": 40,
+        "correctableEccErrors": 4,
+        "uncorrectableEccErrors": 1,
+        "fieldSources": { "utilization": "amdSmiLibrary", "memory": "amdSmiLibrary", "power": "amdSysfs" },
+        "metrics": {
+          "gpuUtilizationPercent": 91,
+          "memoryUsedMegabytes": 65536,
+          "memoryTotalMegabytes": 196608,
+          "memorySource": "vram",
+          "memoryShared": false,
+          "temperatureCelsius": 75,
+          "powerUsageWatts": 650,
+          "smClockMHz": 2100,
+          "memoryClockMHz": 1300
+        }
+      }
+    ]
+  }
+}
+```
+
+Example (Qualcomm on Windows on Snapdragon):
+
+```json
+{
+  "qualcomm": {
+    "source": "windowsGraphicsKernel",
+    "endpoint": "dxgi",
+    "devices": [
+      {
+        "ordinal": 0,
+        "deviceIndex": 0,
+        "vendor": "qualcomm",
+        "source": "windowsGraphicsKernel",
+        "model": "Snapdragon(R) X Elite - X1E78100 - Qualcomm(R) Adreno(TM) GPU",
+        "unifiedMemory": true,
+        "adapterLuid": "0x00000000_0x0000D1B6",
+        "dxgiDeviceId": "0x0c36",
+        "utilizationScope": "device",
+        "engineUtilization": { "3d": 41, "compute": 12 },
+        "sharedMemoryUsedMegabytes": 2048,
+        "sharedMemoryBudgetMegabytes": 16384,
+        "currentFrequencyMHz": 1250,
+        "maxFrequencyMHz": 1500,
+        "metrics": { "gpuUtilizationPercent": 41, "memoryUsedMegabytes": 2176, "memoryTotalMegabytes": 16896, "memorySource": "sharedSystemMemory", "memoryShared": true, "smClockMHz": 1250, "temperatureCelsius": 52.5 }
+      }
+    ]
+  }
+}
+```
 
 The `ollama` object contains:
 
@@ -624,7 +821,11 @@ Request:
   "hostPlatform": "windows",
   "gpuUuid": "GPU-1",
   "gpuModel": "RTX",
+  "gpuVendor": "nvidia",
   "nvidiaAvailable": true,
+  "amdAvailable": null,
+  "appleGpuAvailable": null,
+  "qualcommAvailable": null,
   "ollamaAvailable": true,
   "vllmAvailable": null,
   "utilyzeAvailable": null,
@@ -655,7 +856,12 @@ Response:
       "hostPlatform": "windows",
       "cpuUtilizationPercent": 40,
       "memoryUtilizationPercent": 70,
-      "gpuDeviceCount": 1
+      "nvidiaAvailable": true,
+      "amdAvailable": false,
+      "appleGpuAvailable": false,
+      "qualcommAvailable": false,
+      "gpuDeviceCount": 1,
+      "gpuVendor": "nvidia"
     }
   ],
   "page": 1,
@@ -664,6 +870,12 @@ Response:
   "totalPages": 1
 }
 ```
+
+GPU search fields:
+
+- `gpuVendor`: `nvidia`, `amd`, `apple`, `qualcomm`, or `intel`; matches samples with at least one device from that vendor.
+- `nvidiaAvailable`, `amdAvailable`, `appleGpuAvailable`, `qualcommAvailable`: match the vendor availability recorded with each sample.
+- Records include `gpuVendor` (`mixed` when more than one vendor reported devices). GPU power and temperature summaries are `null` when no device reported them.
 
 ### `GET /v1/telemetry/history/{sampleId}`
 
@@ -687,6 +899,8 @@ Request:
   "endUtc": "2026-06-11T06:00:00Z",
   "bucketMinutes": 60,
   "gpuUuid": null,
+  "gpuVendor": null,
+  "includeGpuVendorBreakdown": true,
   "includeEmptyBuckets": true
 }
 ```
@@ -732,11 +946,34 @@ Response:
       "averageVllmRunningRequests": 3,
       "averageVllmWaitingRequests": 1,
       "averageVllmGpuCacheUsagePercent": 44,
-      "averageUtilyzeDeviceCount": 1
+      "averageUtilyzeDeviceCount": 1,
+      "gpuVendors": {
+        "nvidia": {
+          "sampleCount": 2,
+          "averageDeviceCount": 1,
+          "averageUtilizationPercent": 40,
+          "minUtilizationPercent": 30,
+          "maxUtilizationPercent": 50,
+          "averageMemoryUtilizationPercent": 50,
+          "averageMemoryUsedMegabytes": 12288,
+          "averageMemoryTotalMegabytes": 24576,
+          "averageTemperatureCelsius": 63,
+          "minTemperatureCelsius": 60,
+          "maxTemperatureCelsius": 66,
+          "averagePowerUsageWatts": 250
+        }
+      }
     }
   ]
 }
 ```
+
+GPU roll-up fields:
+
+- `gpuVendor` filters to samples with that vendor and recomputes the bucket's `averageGpu*` fields from that vendor's devices only.
+- `includeGpuVendorBreakdown` (default `true`) adds `gpuVendors` to each bucket, keyed by vendor. Vendors with no data in a bucket are omitted.
+- Each vendor entry aggregates per sample first (utilization and temperature averaged across devices; memory and power summed across devices), then averages those per-sample values across the bucket. Vendor-specific entries include `averageHotspotTemperatureCelsius` and `averageGttUsedMegabytes` (AMD), `averageWorkingSetMegabytes` and `maxThermalState` (Apple, 0 = nominal to 3 = critical), and `averageMemoryBudgetMegabytes` (Qualcomm).
+- `averageGpuPowerUsageWatts` and GPU temperature fields are `null` when no device in the bucket reported them.
 
 `bucketMinutes` is clamped to `1..1440`. Requests where `endUtc` is not later than `startUtc` return `400`.
 

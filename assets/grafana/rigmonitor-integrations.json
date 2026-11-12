@@ -1,7 +1,7 @@
 {
   "uid": "rigmonitor-integrations",
   "title": "RigMonitor / Integrations",
-  "description": "Outbound dependencies: DCGM exporter, Ollama, vLLM, Utilyze, SQLite, and subprocesses.",
+  "description": "Outbound dependencies: DCGM exporter, AMD Device Metrics Exporter, native GPU sources (AMD SMI, sysfs, macOS frameworks, Windows graphics kernel, drm/msm), Ollama, vLLM, Utilyze, SQLite, and subprocesses.",
   "tags": [
     "rigmonitor"
   ],
@@ -423,6 +423,152 @@
           },
           "expr": "max by (rigmonitor_capability) (rigmonitor_capability_available)",
           "legendFormat": "{{rigmonitor_capability}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Native GPU sources",
+      "description": "Native GPU sources that loaded at startup (AMD SMI library, amdgpu sysfs, IOKit, Metal, IOReport, IOHID, DXGI, PDH, D3DKMT perf data, drm/msm, kgsl). A source dropping to 0 after an OS or driver update means its fields are now omitted.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "absent"
+                },
+                "1": {
+                  "text": "available"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (rigmonitor_gpu_feature) (rigmonitor_gpu_native_feature_available)",
+          "legendFormat": "{{rigmonitor_gpu_feature}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Native GPU errors",
+      "description": "Failures inside native GPU sources by vendor and source over the selected range. The GPU section usually still succeeds with fewer fields.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "absent"
+                },
+                "1": {
+                  "text": "available"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (rigmonitor_gpu_vendor, rigmonitor_gpu_feature) (increase(rigmonitor_gpu_native_errors_total[$__range]))",
+          "legendFormat": "{{rigmonitor_gpu_vendor}} / {{rigmonitor_gpu_feature}}",
           "instant": true
         }
       ]

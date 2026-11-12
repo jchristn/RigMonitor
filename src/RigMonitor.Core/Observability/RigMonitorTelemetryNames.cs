@@ -153,6 +153,16 @@ namespace RigMonitor.Core.Observability
         public const string CapabilityAvailable = "rigmonitor.capability.available";
 
         /// <summary>
+        /// Native GPU feature availability gauge (0 or 1) by feature.
+        /// </summary>
+        public const string GpuNativeFeatureAvailable = "rigmonitor.gpu.native.feature.available";
+
+        /// <summary>
+        /// Native GPU collection error counter by vendor and feature.
+        /// </summary>
+        public const string GpuNativeErrors = "rigmonitor.gpu.native.errors";
+
+        /// <summary>
         /// Telemetry sampler warm state gauge (0 or 1).
         /// </summary>
         public const string TelemetryWarm = "rigmonitor.telemetry.warm";
@@ -248,9 +258,19 @@ namespace RigMonitor.Core.Observability
         public const string LabelUtilyzeEvent = "rigmonitor.utilyze.event";
 
         /// <summary>
-        /// Label: runtime capability name (nvidia, ollama, vllm, utilyze).
+        /// Label: runtime capability name (nvidia, amd, apple, qualcomm, ollama, vllm, utilyze).
         /// </summary>
         public const string LabelCapability = "rigmonitor.capability";
+
+        /// <summary>
+        /// Label: native GPU feature (amdSmiLibrary, amdSysfs, ioKit, metal, ioReport, hidSensors, processInfo, dxgi, pdh, d3dkmtPerfData, drmMsm, kgsl).
+        /// </summary>
+        public const string LabelGpuFeature = "rigmonitor.gpu.feature";
+
+        /// <summary>
+        /// Label: GPU vendor (nvidia, amd, apple, qualcomm).
+        /// </summary>
+        public const string LabelGpuVendor = "rigmonitor.gpu.vendor";
 
         /// <summary>
         /// Label: RigMonitor version.
@@ -341,6 +361,36 @@ namespace RigMonitor.Core.Observability
         /// Integration service: NVIDIA DCGM exporter.
         /// </summary>
         public const string ServiceDcgm = "dcgm";
+
+        /// <summary>
+        /// Integration service: AMD Device Metrics Exporter.
+        /// </summary>
+        public const string ServiceAmdMetricsExporter = "amdMetricsExporter";
+
+        /// <summary>
+        /// Integration service: ROCm AMD SMI native library.
+        /// </summary>
+        public const string ServiceAmdSmiLibrary = "amdSmiLibrary";
+
+        /// <summary>
+        /// Integration service: Linux amdgpu sysfs.
+        /// </summary>
+        public const string ServiceAmdSysfs = "amdSysfs";
+
+        /// <summary>
+        /// Integration service: native macOS GPU frameworks.
+        /// </summary>
+        public const string ServiceAppleNative = "appleNative";
+
+        /// <summary>
+        /// Integration service: Windows graphics kernel interfaces (DXGI, PDH, D3DKMT).
+        /// </summary>
+        public const string ServiceWindowsGraphics = "windowsGraphics";
+
+        /// <summary>
+        /// Integration service: Linux Qualcomm drm/msm and kgsl interfaces.
+        /// </summary>
+        public const string ServiceQualcommLinux = "qualcommLinux";
 
         /// <summary>
         /// Integration service: Ollama API.

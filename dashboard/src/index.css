@@ -33,6 +33,14 @@
   --control-height: 2.2rem;
   --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --series-all: #3b82f6;
+  --series-nvidia: #15803d;
+  --series-amd: #dc2626;
+  --series-apple: #7c3aed;
+  --series-qualcomm: #b45309;
+  --memory-used: #3b82f6;
+  --memory-limit: rgba(124, 58, 237, 0.22);
+  --memory-track: #e2e8f0;
 }
 
 :root[data-theme='dark'] {
@@ -64,6 +72,14 @@
   --nav-link-hover-border: #475569;
   --api-bg-start: #020617;
   --api-bg-end: #0f172a;
+  --series-all: #60a5fa;
+  --series-nvidia: #4ade80;
+  --series-amd: #f87171;
+  --series-apple: #a78bfa;
+  --series-qualcomm: #fbbf24;
+  --memory-used: #60a5fa;
+  --memory-limit: rgba(167, 139, 250, 0.3);
+  --memory-track: #1e293b;
 }
 
 * {
@@ -890,4 +906,153 @@ a.mono-token:focus-visible {
 
 .external-services-footnote {
   margin: 0.75rem 0 0;
+}
+
+/* GPU vendor sections */
+.gpu-device-table .row-toggle {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.gpu-detail-row td {
+  background: var(--bg-color);
+}
+
+.gpu-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0.25rem 0;
+}
+
+.gpu-detail-item dt {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.gpu-detail-item dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.guide-link {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.unified-memory {
+  margin: 0.75rem 0;
+}
+
+.unified-memory-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+.unified-memory-swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  margin-right: 0.35rem;
+  vertical-align: -0.05rem;
+}
+
+.unified-memory-swatch.used {
+  background: var(--memory-used);
+}
+
+.unified-memory-swatch.limit {
+  background: var(--memory-limit);
+  border: 1px solid var(--series-apple);
+}
+
+.unified-memory-track {
+  position: relative;
+  height: 0.85rem;
+  border-radius: 999px;
+  background: var(--memory-track);
+  overflow: hidden;
+}
+
+.unified-memory-limit,
+.unified-memory-used {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+}
+
+.unified-memory-limit {
+  background: var(--memory-limit);
+}
+
+.unified-memory-used {
+  background: var(--memory-used);
+  border-radius: 999px;
+}
+
+/* Multi-series charts */
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.chart-legend-item.muted {
+  opacity: 0.45;
+}
+
+.chart-legend-swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.25rem;
+  border-radius: 2px;
+}
+
+.series-all { --series-color: var(--series-all); }
+.series-nvidia { --series-color: var(--series-nvidia); }
+.series-amd { --series-color: var(--series-amd); }
+.series-apple { --series-color: var(--series-apple); }
+.series-qualcomm { --series-color: var(--series-qualcomm); }
+
+.chart-legend-swatch {
+  background: var(--series-color, var(--primary-color));
+}
+
+.chart-series .chart-line {
+  stroke: var(--series-color, var(--primary-color));
+}
+
+.chart-series .chart-point {
+  stroke: var(--series-color, var(--primary-color));
+}
+
+.chart-active-point[class*='series-'] {
+  fill: var(--series-color, var(--primary-color));
 }

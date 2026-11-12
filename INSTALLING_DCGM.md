@@ -1,5 +1,9 @@
 # Installing DCGM for RigMonitor
 
+This guide covers NVIDIA GPUs. For AMD see [INSTALLING_AMD_GPU_TELEMETRY.md](./INSTALLING_AMD_GPU_TELEMETRY.md), for Apple Silicon see [APPLE_GPU_TELEMETRY.md](./APPLE_GPU_TELEMETRY.md), and for Qualcomm Adreno see [QUALCOMM_GPU_TELEMETRY.md](./QUALCOMM_GPU_TELEMETRY.md).
+
+NVIDIA telemetry appears in the `nvidia` section of `/v1/telemetry` and in the NVIDIA section of the dashboard. Set `Telemetry.NvidiaEnabled` to `false` to stop RigMonitor from probing the DCGM exporter on hosts without NVIDIA GPUs.
+
 RigMonitor does not query NVIDIA DCGM hostengine directly. It reads NVIDIA GPU telemetry from the Prometheus endpoint exposed by NVIDIA DCGM exporter.
 
 By default RigMonitor expects:

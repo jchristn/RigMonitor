@@ -345,6 +345,26 @@ rm_systemd_install() {
   user="$(id -un)"
   group="$(id -gn)"
   tmp="$(mktemp)"
+
+  # GPU access: AMD (ROCm and amdgpu) and other DRM devices need the render and video groups.
+  # Only groups that exist are listed, because systemd refuses to start a unit with an unknown group.
+  local gpu_groups="" gpu_group service_extra=""
+  for gpu_group in render video; do
+    if getent group "$gpu_group" >/dev/null 2>&1; then
+      gpu_groups="$gpu_groups $gpu_group"
+      if ! id -nG "$user" | tr ' ' '\n' | grep -qx "$gpu_group" && ls /sys/class/drm/card*/device/vendor >/dev/null 2>&1; then
+        rm_log "Note: $user is not in the '$gpu_group' group; the service gets it through SupplementaryGroups"
+      fi
+    fi
+  done
+  if [ -n "$gpu_groups" ]; then
+    service_extra="SupplementaryGroups=${gpu_groups# }"
+  fi
+  if [ -d /opt/rocm/lib ]; then
+    service_extra="$service_extra
+Environment=LD_LIBRARY_PATH=/opt/rocm/lib"
+  fi
+
   cat > "$tmp" <<EOF
 [Unit]
 Description=RigMonitor telemetry daemon
@@ -356,6 +376,7 @@ Wants=network-online.target
 Type=simple
 User=$user
 Group=$group
+$service_extra
 WorkingDirectory=$RM_ROOT
 ExecStart=/bin/bash "$start_script" --foreground
 Restart=on-failure

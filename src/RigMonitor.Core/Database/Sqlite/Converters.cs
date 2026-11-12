@@ -59,6 +59,10 @@ namespace RigMonitor.Core.Database.Sqlite
                 PersistedUtc = FromTimestamp(GetString(row, "persistedutc")),
                 HostPlatform = ParseHostPlatform(GetString(row, "hostplatform")),
                 NvidiaAvailable = GetBoolean(row, "nvidiaavailable"),
+                AmdAvailable = GetBoolean(row, "amdavailable"),
+                AppleGpuAvailable = GetBoolean(row, "applegpuavailable"),
+                QualcommAvailable = GetBoolean(row, "qualcommavailable"),
+                GpuVendor = ParseGpuVendor(GetString(row, "gpuvendor")),
                 OllamaAvailable = GetBoolean(row, "ollamaavailable"),
                 VllmAvailable = GetBoolean(row, "vllmavailable"),
                 UtilyzeAvailable = GetBoolean(row, "utilyzeavailable"),
@@ -118,6 +122,38 @@ namespace RigMonitor.Core.Database.Sqlite
         {
             if (!row.Table.Columns.Contains(columnName) || row[columnName] == DBNull.Value) return null;
             return Convert.ToDouble(row[columnName], CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// Convert a GPU vendor to its stored camelCase form.
+        /// </summary>
+        /// <param name="vendor">Vendor.</param>
+        /// <returns>Stored value.</returns>
+        internal static string ToVendorString(GpuVendorEnum vendor)
+        {
+            string name = vendor.ToString();
+            return Char.ToLowerInvariant(name[0]) + name.Substring(1);
+        }
+
+        /// <summary>
+        /// Convert a GPU source to its stored camelCase form.
+        /// </summary>
+        /// <param name="source">Source.</param>
+        /// <returns>Stored value.</returns>
+        internal static string ToSourceString(GpuTelemetrySourceEnum source)
+        {
+            string name = source.ToString();
+            return Char.ToLowerInvariant(name[0]) + name.Substring(1);
+        }
+
+        private static GpuVendorEnum? ParseGpuVendor(string value)
+        {
+            if (!String.IsNullOrWhiteSpace(value) && Enum.TryParse(value, true, out GpuVendorEnum result))
+            {
+                return result;
+            }
+
+            return null;
         }
 
         private static HostPlatformEnum ParseHostPlatform(string value)

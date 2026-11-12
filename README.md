@@ -2,7 +2,7 @@
 
 <img src="assets/icon.png" alt="RigMonitor icon" width="192" height="192" />
 
-Version `0.2.1-alpha`
+Version `0.3.0-alpha`
 
 Note: RigMonitor is currently in `ALPHA`. Expect API, dashboard, configuration, and telemetry surface changes while the project is still stabilizing.
 
@@ -23,7 +23,12 @@ It is meant for environments where hardware visibility is not just operationally
 
 Detailed endpoint and payload documentation lives in [REST_API.md](./REST_API.md).
 
-NVIDIA GPU telemetry setup is documented in [INSTALLING_DCGM.md](./INSTALLING_DCGM.md).
+GPU telemetry setup is documented per vendor:
+
+- NVIDIA: [INSTALLING_DCGM.md](./INSTALLING_DCGM.md)
+- AMD: [INSTALLING_AMD_GPU_TELEMETRY.md](./INSTALLING_AMD_GPU_TELEMETRY.md)
+- Apple Silicon: [APPLE_GPU_TELEMETRY.md](./APPLE_GPU_TELEMETRY.md)
+- Qualcomm Adreno: [QUALCOMM_GPU_TELEMETRY.md](./QUALCOMM_GPU_TELEMETRY.md)
 
 Ubuntu bare-metal deployment is documented in [BARE_METAL_DEPLOYMENT.md](./BARE_METAL_DEPLOYMENT.md).
 
@@ -32,14 +37,18 @@ RigMonitor's own metrics, traces, and logs (for operating RigMonitor from Grafan
 ## Features
 
 - CPU, memory, network, and disk telemetry
-- Optional NVIDIA GPU telemetry through DCGM exporter
+- Optional GPU telemetry for NVIDIA, AMD, Apple, and Qualcomm, each in its own API and dashboard section, plus a vendor-neutral `gpu` aggregate:
+  - NVIDIA through the DCGM exporter
+  - AMD through the ROCm AMD SMI library (in-process), `amdgpu` sysfs, or the AMD Device Metrics Exporter, with per-field gap-fill
+  - Apple Silicon through in-process macOS frameworks (IOKit, Metal, IOReport, IOHID, Foundation), with no `sudo` and no helper processes
+  - Qualcomm Adreno through the Windows graphics kernel (DXGI, PDH, D3DKMT) on Windows on Snapdragon, or `drm/msm` and `kgsl` on Linux
 - Optional Ollama telemetry with available models and loaded models
 - Optional vLLM telemetry through its Prometheus metrics endpoint
 - Optional Utilyze telemetry through a sidecar WebSocket service for GPU SOL, bandwidth, and attainable ceiling metrics
 - Structured per-section collection metadata with request state, support state, freshness, last success, and stable status codes
 - Local SQLite telemetry persistence with configurable collection cadence, hostname, and retention pruning
 - Search, enumeration, detail, delete, and bucketized roll-up APIs for historical telemetry
-- Same-port dashboard with manual refresh, auto-refresh, i18n, vLLM/Utilyze status/telemetry cards, historical analytics at `/dashboard/analytics`, and JSON inspection for the current view
+- Same-port dashboard with NVIDIA, AMD, Apple, and Qualcomm GPU sections, per-vendor analytics chart series, manual refresh, auto-refresh, i18n, vLLM/Utilyze status/telemetry cards, historical analytics at `/dashboard/analytics`, and JSON inspection for the current view
 - OpenAPI document at `/openapi.json` and Swagger UI at `/openapi`
 - Built-in observability of RigMonitor itself: OpenTelemetry metrics and traces for every request, snapshot section, background collector stage, and outbound call (DCGM, Ollama, vLLM, Utilyze, SQLite, subprocesses), exported over OTLP and a Prometheus scrape endpoint, with optional Loki logs, a bundled Prometheus/Tempo/Loki/Grafana stack, and six provisioned Grafana dashboards
 
@@ -69,7 +78,11 @@ RigMonitor's own metrics, traces, and logs (for operating RigMonitor from Grafan
 - `memory`
 - `network`
 - `disk`
-- `gpu`
+- `gpu` (vendor-neutral aggregate of every GPU)
+- `nvidia`
+- `amd`
+- `apple`
+- `qualcomm`
 - `ollama`
 - `vllm`
 - `utilyze`
@@ -80,6 +93,7 @@ Rules:
 - Presence of a key means `true`.
 - A key set to `=false` means `false`.
 - Once one or more recognized selector keys are present, unspecified recognized sections are omitted.
+- `gpu` collects every vendor internally but returns only the aggregate; `nvidia`, `amd`, `apple`, and `qualcomm` return the vendor sections. Vendor sections are collected in parallel and never twice per request.
 
 Example:
 
@@ -89,7 +103,7 @@ http://127.0.0.1:9990/v1/telemetry?cpu&memory&network&gpu=false
 
 All API response property names are camelCase. RigMonitor-owned classification values are also emitted as camelCase strings, for example `windows`, `x64`, `wireless80211`, `up`, and `fixed`. Upstream opaque strings such as Ollama quantization labels are passed through as provided.
 
-Every `/v1/telemetry` response now also includes a top-level `collection` object. It does not wrap or rename the existing `system`, `cpu`, `memory`, `network`, `disk`, `gpu`, `ollama`, `vllm`, or `utilyze` payload sections. Instead, it explains why a section is present, omitted, unsupported, temporarily unavailable, errored, or stale.
+Every `/v1/telemetry` response now also includes a top-level `collection` object. It does not wrap or rename the existing `system`, `cpu`, `memory`, `network`, `disk`, `gpu`, `nvidia`, `amd`, `apple`, `qualcomm`, `ollama`, `vllm`, or `utilyze` payload sections. Instead, it explains why a section is present, omitted, unsupported, temporarily unavailable, errored, or stale.
 
 ## Section States
 
@@ -115,6 +129,8 @@ Status matrix:
 | Collector threw and no stale success exists | omitted | `true` | `true` | `error` |
 | Collector failed and the last success aged past the stale window | omitted | `true` | `true` | `stale` |
 | Collector succeeded | present | `true` | `true` | `ok` |
+
+`collection.gpu` is derived from the four vendor sections: it is supported when any vendor is supported, `ok` when at least one requested vendor returned data, and otherwise reports the most severe vendor status (`error` > `stale` > `unavailable` > `unsupported`). Its `message` names vendors that are not `ok`.
 
 The `freshness` object is evaluated from the last successful sample. This means a section can be currently unavailable while still showing when it last succeeded and whether that success is still inside the configured stale window.
 
@@ -195,7 +211,22 @@ The default settings file is `rigmonitor.json`. The daemon creates it automatica
 
 Relevant telemetry settings:
 
+- `Telemetry.NvidiaEnabled` (default `true`)
 - `Telemetry.DcgmExporterUrl`
+- `Telemetry.AmdEnabled` (default `true`; Linux and Windows)
+- `Telemetry.AmdSource`: `auto` (default), `native`, `sysfs`, or `exporter`
+- `Telemetry.AmdSmiLibraryPath`: explicit `libamd_smi.so` path; empty searches ROCm locations
+- `Telemetry.AmdSysfsGapFillEnabled` (default `true`)
+- `Telemetry.AmdSysfsRoot` (default `/sys/class/drm`)
+- `Telemetry.AmdMetricsExporterUrl` (default `http://localhost:5000/metrics`)
+- `Telemetry.AppleGpuEnabled` (default `true`; macOS)
+- `Telemetry.AppleIOReportEnabled`, `Telemetry.AppleHidSensorsEnabled`: kill switches for GPU power/frequency and temperature (default `true`)
+- `Telemetry.AppleSamplerIntervalMs` (default `1000`, clamped 250 to 10000)
+- `Telemetry.QualcommEnabled` (default `true`; Windows and Linux)
+- `Telemetry.QualcommSource`: `auto` (default), `windows`, `drmMsm`, or `kgsl`
+- `Telemetry.QualcommSysfsRoot`, `Telemetry.QualcommProcRoot` (defaults `/sys`, `/proc`)
+- `Telemetry.WindowsGenericGpuEnabled`: feed AMD adapters seen by the Windows backend into the AMD section (default `true`)
+- `Telemetry.WindowsGpuSamplerIntervalMs` (default `1000`, clamped 250 to 10000)
 - `Telemetry.OllamaBaseUrl`
 - `Telemetry.VllmEnabled`
 - `Telemetry.VllmMetricsUrl`
@@ -212,6 +243,7 @@ Dashboard settings:
 - `Dashboard.Enabled`
 - `Dashboard.Title`
 - `Dashboard.AutoRefreshIntervalMs`
+- `Dashboard.HideUnsupportedGpuSections`: default for hiding GPU vendor sections the host does not support (default `false`; viewers can override it per browser with the "Show unsupported GPU vendors" toggle)
 
 Logging settings:
 
@@ -267,27 +299,38 @@ When persistence is enabled, RigMonitor collects the same full snapshot shape re
 
 History APIs support continuation-based enumeration, request-history style search, sample drill-down, deletion, and roll-ups such as "average telemetry from 05:00 to 06:00" with configurable bucket sizes. The dashboard analytics page at `/dashboard/analytics` uses those APIs to filter ranges, highlight selected quick ranges, chart bucketized metrics, page through samples, inspect the original captured snapshot, and view/copy the JSON powering the current analytics view.
 
-## NVIDIA GPU Telemetry
+## GPU Telemetry
 
-RigMonitor collects NVIDIA GPU telemetry through NVIDIA DCGM exporter, not directly from `nv-hostengine`.
+RigMonitor reports each GPU vendor in its own section and builds a vendor-neutral `gpu` aggregate from them. Metrics a source cannot provide are omitted (null) rather than reported as `0`.
 
-The default endpoint is:
+| Vendor | Platforms | Source (in preference order) | Guide |
+|--------|-----------|------------------------------|-------|
+| NVIDIA | Linux, Windows | DCGM exporter (`http://localhost:9400/metrics`) | [INSTALLING_DCGM.md](./INSTALLING_DCGM.md) |
+| AMD | Linux, Windows | ROCm AMD SMI library (in-process) with `amdgpu` sysfs gap-fill, then sysfs alone, then the AMD Device Metrics Exporter; Windows graphics kernel on Windows | [INSTALLING_AMD_GPU_TELEMETRY.md](./INSTALLING_AMD_GPU_TELEMETRY.md) |
+| Apple | macOS | IOKit, Metal, IOReport, IOHID, and Foundation, all in-process | [APPLE_GPU_TELEMETRY.md](./APPLE_GPU_TELEMETRY.md) |
+| Qualcomm | Windows on Snapdragon, Linux | DXGI, PDH, and D3DKMT on Windows; `drm/msm` (devfreq, fdinfo, thermal) or `kgsl` on Linux | [QUALCOMM_GPU_TELEMETRY.md](./QUALCOMM_GPU_TELEMETRY.md) |
 
-```text
-http://localhost:9400/metrics
+Unified-memory devices (Apple Silicon, AMD APUs such as Ryzen AI Max and MI300A, Qualcomm Adreno, NVIDIA GB10 / DGX Spark) are flagged with `unifiedMemory: true`. When a device does not report a memory capacity, RigMonitor uses host physical memory and marks the memory as shared. Apple sections also report Metal's recommended GPU working set, which is the practical limit for model placement on a Mac.
+
+GPU sources are probed once at startup. Restart RigMonitor after installing drivers, ROCm, or an exporter.
+
+### NVIDIA
+
+RigMonitor collects NVIDIA GPU telemetry through NVIDIA DCGM exporter, not directly from `nv-hostengine`. For NVIDIA telemetry to appear:
+
+- NVIDIA drivers and DCGM must be installed, and DCGM exporter must be running (commonly `nvidia-dcgm-exporter.service`).
+- `curl http://127.0.0.1:9400/metrics` must return metrics such as `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_FB_FREE`, or `DCGM_FI_DEV_GPU_TEMP`.
+
+On GB10 unified-memory systems, DCGM may report zero framebuffer memory. RigMonitor falls back to host physical memory for GPU RAM on those systems and marks the memory as shared.
+
+## Testing
+
+```bash
+cd src && dotnet test RigMonitor.sln
+cd dashboard && npm test
 ```
 
-For GPU telemetry to appear:
-
-- NVIDIA drivers and DCGM must be installed.
-- `nv-hostengine` can be running through `nvidia-dcgm.service`, commonly on port `5555`.
-- DCGM exporter must also be installed and running, commonly as `nvidia-dcgm-exporter.service`.
-- `curl http://127.0.0.1:9400/metrics` must return Prometheus metrics containing names such as `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_FB_FREE`, or `DCGM_FI_DEV_GPU_TEMP`.
-- RigMonitor must be started after the exporter is reachable, or restarted after installing or fixing the exporter.
-
-On GB10 unified-memory systems, DCGM may report zero framebuffer memory because GPU memory is shared with system RAM. RigMonitor falls back to host physical memory for GPU RAM display on those systems and marks the GPU memory source as shared.
-
-See [INSTALLING_DCGM.md](./INSTALLING_DCGM.md) for Ubuntu install, verification, and troubleshooting commands.
+`Test.Xunit` covers the backend, including every GPU vendor against fakes and recorded fixtures, so it runs on any OS. `Test.Automated` also contains hardware tests (`Category=Hardware`) that read real GPUs through the native layers; each one skips itself when its hardware is absent (Apple on macOS, AMD and Adreno on Linux, DXGI/PDH on Windows). The dashboard tests use Vitest and include a check that every locale has exactly the English key set.
 
 ## Docker
 
@@ -317,7 +360,8 @@ If you configure `Persistence.Database.Filename` outside `/app/data`, add a volu
 ## GPU, Ollama, vLLM, And Utilyze Notes
 
 - NVIDIA telemetry is available only when the configured DCGM exporter is reachable at startup. DCGM hostengine alone is not enough.
-- If DCGM exporter is installed or started after RigMonitor, restart RigMonitor so `/v1/capabilities` can refresh `nvidiaAvailable`.
+- GPU availability (`nvidiaAvailable`, `amdAvailable`, `appleGpuAvailable`, `qualcommAvailable`) and the resolved sources are detected at startup and reported by `/v1/capabilities`. Restart RigMonitor after installing or fixing a GPU source.
+- Apple GPU telemetry requires a native macOS run; Docker Desktop on macOS runs a Linux VM with no GPU access.
 - Ollama telemetry is available only when the configured Ollama API is reachable at startup.
 - vLLM telemetry is available only when `Telemetry.VllmEnabled` is `true` and the configured Prometheus metrics endpoint is reachable at startup.
 - Utilyze telemetry is available only when `Telemetry.UtilyzeEnabled` is `true` and a Utilyze sidecar is reachable at `Telemetry.UtilyzeLiveUrl` during startup. RigMonitor consumes Utilyze over its live WebSocket API and does not launch or supervise `utlz`.

@@ -46,6 +46,15 @@ services:
       - type: bind
         source: ./data
         target: /app/data
+    # GPU telemetry from inside the container:
+    # - AMD sysfs is visible by default (read-only /sys). The image does not include ROCm, so the AMD SMI
+    #   library is unavailable here; to read a host AMD Device Metrics Exporter instead, set
+    #   telemetry.amdSource to "exporter" and telemetry.amdMetricsExporterUrl to
+    #   "http://host.docker.internal:5000/metrics" in data/rigmonitor.json and uncomment extra_hosts.
+    # - To reach a host DCGM exporter, set telemetry.dcgmExporterUrl to "http://host.docker.internal:9400/metrics".
+    # - Apple GPU telemetry needs a native run; Docker Desktop on macOS has no GPU access.
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
     depends_on:
       tempo:
         condition: service_healthy

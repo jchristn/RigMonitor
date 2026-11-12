@@ -26,6 +26,26 @@ namespace RigMonitor.Core
         public const string DefaultDcgmExporterUrl = "http://localhost:9400/metrics";
 
         /// <summary>
+        /// Default AMD Device Metrics Exporter endpoint.
+        /// </summary>
+        public const string DefaultAmdMetricsExporterUrl = "http://localhost:5000/metrics";
+
+        /// <summary>
+        /// Default Linux DRM sysfs class root.
+        /// </summary>
+        public const string DefaultDrmSysfsRoot = "/sys/class/drm";
+
+        /// <summary>
+        /// Default Linux sysfs root.
+        /// </summary>
+        public const string DefaultSysfsRoot = "/sys";
+
+        /// <summary>
+        /// Default Linux procfs root.
+        /// </summary>
+        public const string DefaultProcRoot = "/proc";
+
+        /// <summary>
         /// Default Ollama endpoint.
         /// </summary>
         public const string DefaultOllamaBaseUrl = "http://localhost:11434";

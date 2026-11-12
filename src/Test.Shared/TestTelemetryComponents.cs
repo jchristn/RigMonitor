@@ -3,6 +3,7 @@ namespace Test.Shared
     using System;
     using System.Threading;
     using System.Threading.Tasks;
+    using RigMonitor.Core.Enums;
     using RigMonitor.Core.Models;
     using RigMonitor.Core.Services.Interfaces;
 
@@ -13,7 +14,10 @@ namespace Test.Shared
         ISystemTelemetryProvider,
         IMemoryInfoProvider,
         INetworkRateSampler,
-        IGpuTelemetryProvider,
+        INvidiaGpuTelemetryProvider,
+        IAmdGpuTelemetryProvider,
+        IAppleGpuTelemetryProvider,
+        IQualcommGpuTelemetryProvider,
         IOllamaClient,
         IVllmTelemetryProvider,
         IUtilyzeTelemetryProvider,
@@ -65,9 +69,29 @@ namespace Test.Shared
         public Func<CancellationToken, Task<NetworkTelemetry>>? NetworkTelemetryHandler { get; set; } = null;
 
         /// <summary>
-        /// Optional GPU telemetry handler.
+        /// Optional NVIDIA GPU telemetry handler.
         /// </summary>
-        public Func<CancellationToken, Task<GpuTelemetry?>>? GpuTelemetryHandler { get; set; } = null;
+        public Func<CancellationToken, Task<NvidiaGpuTelemetry?>>? NvidiaTelemetryHandler { get; set; } = null;
+
+        /// <summary>
+        /// AMD GPU telemetry handler.
+        /// </summary>
+        public Func<CancellationToken, Task<AmdGpuTelemetry?>>? AmdTelemetryHandler { get; set; } = null;
+
+        /// <summary>
+        /// Apple GPU telemetry handler.
+        /// </summary>
+        public Func<CancellationToken, Task<AppleGpuTelemetry?>>? AppleTelemetryHandler { get; set; } = null;
+
+        /// <summary>
+        /// Qualcomm GPU telemetry handler.
+        /// </summary>
+        public Func<CancellationToken, Task<QualcommGpuTelemetry?>>? QualcommTelemetryHandler { get; set; } = null;
+
+        /// <summary>
+        /// GPU probe handler (all vendors); defaults to the Current availability flags.
+        /// </summary>
+        public Func<GpuVendorEnum, CancellationToken, Task<GpuProbeResult>>? GpuProbeHandler { get; set; } = null;
 
         /// <summary>
         /// Optional Ollama telemetry handler.
@@ -188,19 +212,50 @@ namespace Test.Shared
             return Task.FromResult(new NetworkTelemetry());
         }
 
-        /// <summary>
-        /// Capture GPU telemetry.
-        /// </summary>
-        /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>GPU telemetry when available.</returns>
-        public Task<GpuTelemetry?> GetTelemetryAsync(CancellationToken cancellationToken)
+        GpuVendorEnum IGpuVendorTelemetryProvider<NvidiaGpuTelemetry>.Vendor => GpuVendorEnum.Nvidia;
+
+        GpuVendorEnum IGpuVendorTelemetryProvider<AmdGpuTelemetry>.Vendor => GpuVendorEnum.Amd;
+
+        GpuVendorEnum IGpuVendorTelemetryProvider<AppleGpuTelemetry>.Vendor => GpuVendorEnum.Apple;
+
+        GpuVendorEnum IGpuVendorTelemetryProvider<QualcommGpuTelemetry>.Vendor => GpuVendorEnum.Qualcomm;
+
+        Task<GpuProbeResult> IGpuVendorTelemetryProvider<NvidiaGpuTelemetry>.ProbeAsync(CancellationToken cancellationToken) => Probe(GpuVendorEnum.Nvidia, Current.NvidiaAvailable, cancellationToken);
+
+        Task<GpuProbeResult> IGpuVendorTelemetryProvider<AmdGpuTelemetry>.ProbeAsync(CancellationToken cancellationToken) => Probe(GpuVendorEnum.Amd, Current.AmdAvailable, cancellationToken);
+
+        Task<GpuProbeResult> IGpuVendorTelemetryProvider<AppleGpuTelemetry>.ProbeAsync(CancellationToken cancellationToken) => Probe(GpuVendorEnum.Apple, Current.AppleGpuAvailable, cancellationToken);
+
+        Task<GpuProbeResult> IGpuVendorTelemetryProvider<QualcommGpuTelemetry>.ProbeAsync(CancellationToken cancellationToken) => Probe(GpuVendorEnum.Qualcomm, Current.QualcommAvailable, cancellationToken);
+
+        Task<NvidiaGpuTelemetry?> IGpuVendorTelemetryProvider<NvidiaGpuTelemetry>.GetTelemetryAsync(CancellationToken cancellationToken)
         {
-            if (GpuTelemetryHandler != null)
+            return NvidiaTelemetryHandler != null ? NvidiaTelemetryHandler(cancellationToken) : Task.FromResult<NvidiaGpuTelemetry?>(null);
+        }
+
+        Task<AmdGpuTelemetry?> IGpuVendorTelemetryProvider<AmdGpuTelemetry>.GetTelemetryAsync(CancellationToken cancellationToken)
+        {
+            return AmdTelemetryHandler != null ? AmdTelemetryHandler(cancellationToken) : Task.FromResult<AmdGpuTelemetry?>(null);
+        }
+
+        Task<AppleGpuTelemetry?> IGpuVendorTelemetryProvider<AppleGpuTelemetry>.GetTelemetryAsync(CancellationToken cancellationToken)
+        {
+            return AppleTelemetryHandler != null ? AppleTelemetryHandler(cancellationToken) : Task.FromResult<AppleGpuTelemetry?>(null);
+        }
+
+        Task<QualcommGpuTelemetry?> IGpuVendorTelemetryProvider<QualcommGpuTelemetry>.GetTelemetryAsync(CancellationToken cancellationToken)
+        {
+            return QualcommTelemetryHandler != null ? QualcommTelemetryHandler(cancellationToken) : Task.FromResult<QualcommGpuTelemetry?>(null);
+        }
+
+        private Task<GpuProbeResult> Probe(GpuVendorEnum vendor, bool available, CancellationToken cancellationToken)
+        {
+            if (GpuProbeHandler != null)
             {
-                return GpuTelemetryHandler(cancellationToken);
+                return GpuProbeHandler(vendor, cancellationToken);
             }
 
-            return Task.FromResult<GpuTelemetry?>(null);
+            return Task.FromResult(new GpuProbeResult { Vendor = vendor, Available = available });
         }
 
         /// <summary>

@@ -429,11 +429,11 @@ namespace Test.Xunit
                 },
                 Gpu = new GpuTelemetry
                 {
-                    Vendor = "NVIDIA",
-                    ExporterEndpoint = "http://localhost:9400/metrics",
+                    Vendor = GpuVendorEnum.Nvidia,
+                    Vendors = { GpuVendorEnum.Nvidia },
                     Devices =
                     {
-                        new GpuDeviceTelemetry
+                        new NvidiaGpuDeviceTelemetry
                         {
                             DeviceIndex = 0,
                             Uuid = gpuUuid,

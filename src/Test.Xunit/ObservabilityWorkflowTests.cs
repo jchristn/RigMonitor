@@ -10,6 +10,7 @@ namespace Test.Xunit
     using RigMonitor.Core.Models;
     using RigMonitor.Core.Observability;
     using RigMonitor.Core.Settings;
+    using RigMonitor.Telemetry.Gpu.Nvidia;
     using RigMonitor.Telemetry.Services;
     using Test.Shared;
 
@@ -72,7 +73,7 @@ namespace Test.Xunit
             {
                 TestTelemetryComponents components = CreateComponents();
                 components.CpuTelemetryHandler = _ => Task.FromException<CpuTelemetry>(new InvalidOperationException("cpu sampler failed"));
-                components.GpuTelemetryHandler = _ => Task.FromResult<GpuTelemetry?>(null);
+                components.NvidiaTelemetryHandler = _ => Task.FromResult<NvidiaGpuTelemetry?>(null);
                 components.MemoryTelemetryHandler = _ => Task.FromException<MemoryTelemetry>(new TaskCanceledException("timed out"));
                 components.DiskTelemetryHandler = _ => Task.FromException<DiskTelemetry>(new PlatformNotSupportedException("no disk counters"));
                 TelemetryService service = CreateService(components);
@@ -176,7 +177,15 @@ namespace Test.Xunit
                 TestTelemetryComponents components = CreateComponents();
                 components.OllamaAvailabilityHandler = _ => Task.FromResult(true);
                 RuntimeCapabilitiesService service = new RuntimeCapabilitiesService(
-                    settings, false, new DcgmExporterClient(settings), components, components, components);
+                    settings,
+                    false,
+                    new NvidiaDcgmGpuTelemetryProvider(settings, new DcgmExporterClient(settings)),
+                    components,
+                    components,
+                    components,
+                    components,
+                    components,
+                    components);
 
                 await service.InitializeAsync(CancellationToken.None);
 
@@ -272,6 +281,9 @@ namespace Test.Xunit
                 components,
                 components,
                 components,
+                components,
+                components,
+                components,
                 components);
         }
 
@@ -287,7 +299,7 @@ namespace Test.Xunit
                     VllmAvailable = true,
                     UtilyzeAvailable = true
                 },
-                GpuTelemetryHandler = _ => Task.FromResult<GpuTelemetry?>(new GpuTelemetry { Vendor = "NVIDIA" }),
+                NvidiaTelemetryHandler = _ => Task.FromResult<NvidiaGpuTelemetry?>(new NvidiaGpuTelemetry { Devices = { new NvidiaGpuDeviceTelemetry() } }),
                 OllamaTelemetryHandler = _ => Task.FromResult<OllamaTelemetry?>(new OllamaTelemetry { Available = true }),
                 VllmTelemetryHandler = _ => Task.FromResult<VllmTelemetry?>(new VllmTelemetry { Available = true }),
                 UtilyzeTelemetryHandler = _ => Task.FromResult<UtilyzeTelemetry?>(new UtilyzeTelemetry { Available = true })

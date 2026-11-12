@@ -9,7 +9,9 @@ import {
   formatDateTimeWithSeconds,
   formatNumber,
   formatPercent,
+  thermalStateOrder,
 } from '../i18n/formatters'
+import i18n from '../i18n'
 import {
   getTelemetryHistoryStatus,
   getTelemetrySample,
@@ -17,13 +19,19 @@ import {
   searchTelemetryHistory,
 } from '../utils/api'
 
-const metricDescriptors = [
+export const metricDescriptors = [
   { key: 'cpu', field: 'averageCpuUtilizationPercent', recordField: 'cpuUtilizationPercent', labelKey: 'analytics.metrics.cpu', type: 'percent' },
   { key: 'memory', field: 'averageMemoryUtilizationPercent', recordField: 'memoryUtilizationPercent', labelKey: 'analytics.metrics.memory', type: 'percent' },
-  { key: 'gpu', field: 'averageGpuUtilizationPercent', recordField: 'gpuAverageUtilizationPercent', labelKey: 'analytics.metrics.gpu', type: 'percent' },
-  { key: 'gpuMemory', field: 'averageGpuMemoryUtilizationPercent', recordField: 'gpuAverageMemoryUtilizationPercent', labelKey: 'analytics.metrics.gpuMemory', type: 'percent' },
-  { key: 'gpuTemperature', field: 'averageGpuTemperatureCelsius', recordField: 'gpuAverageTemperatureCelsius', labelKey: 'analytics.metrics.gpuTemperature', type: 'temperature' },
-  { key: 'gpuPower', field: 'averageGpuPowerUsageWatts', recordField: 'gpuTotalPowerUsageWatts', labelKey: 'analytics.metrics.gpuPower', type: 'watts' },
+  { key: 'gpu', field: 'averageGpuUtilizationPercent', vendorField: 'averageUtilizationPercent', recordField: 'gpuAverageUtilizationPercent', labelKey: 'analytics.metrics.gpu', type: 'percent' },
+  { key: 'gpuMemory', field: 'averageGpuMemoryUtilizationPercent', vendorField: 'averageMemoryUtilizationPercent', recordField: 'gpuAverageMemoryUtilizationPercent', labelKey: 'analytics.metrics.gpuMemory', type: 'percent' },
+  { key: 'gpuMemoryUsed', field: 'averageGpuMemoryUsedMegabytes', vendorField: 'averageMemoryUsedMegabytes', labelKey: 'analytics.metrics.gpuMemoryUsed', type: 'megabytes' },
+  { key: 'gpuTemperature', field: 'averageGpuTemperatureCelsius', vendorField: 'averageTemperatureCelsius', recordField: 'gpuAverageTemperatureCelsius', labelKey: 'analytics.metrics.gpuTemperature', type: 'temperature' },
+  { key: 'gpuPower', field: 'averageGpuPowerUsageWatts', vendorField: 'averagePowerUsageWatts', recordField: 'gpuTotalPowerUsageWatts', labelKey: 'analytics.metrics.gpuPower', type: 'watts' },
+  { key: 'amdHotspot', vendorField: 'averageHotspotTemperatureCelsius', vendors: ['amd'], labelKey: 'analytics.metrics.amdHotspot', type: 'temperature' },
+  { key: 'amdGtt', vendorField: 'averageGttUsedMegabytes', vendors: ['amd'], labelKey: 'analytics.metrics.amdGtt', type: 'megabytes' },
+  { key: 'appleWorkingSet', vendorField: 'averageWorkingSetMegabytes', vendors: ['apple'], labelKey: 'analytics.metrics.appleWorkingSet', type: 'megabytes' },
+  { key: 'appleThermalState', vendorField: 'maxThermalState', vendors: ['apple'], labelKey: 'analytics.metrics.appleThermalState', type: 'thermalState' },
+  { key: 'qualcommMemoryBudget', vendorField: 'averageMemoryBudgetMegabytes', vendors: ['qualcomm'], labelKey: 'analytics.metrics.qualcommMemoryBudget', type: 'megabytes' },
   { key: 'networkRx', field: 'averageNetworkReceiveBytesPerSecond', recordField: 'networkReceiveBytesPerSecond', labelKey: 'analytics.metrics.networkRx', type: 'bytesPerSecond' },
   { key: 'networkTx', field: 'averageNetworkTransmitBytesPerSecond', recordField: 'networkTransmitBytesPerSecond', labelKey: 'analytics.metrics.networkTx', type: 'bytesPerSecond' },
   { key: 'diskRead', field: 'averageDiskReadOperationsPerSecond', recordField: 'diskReadOperationsPerSecond', labelKey: 'analytics.metrics.diskRead', type: 'number' },
@@ -35,6 +43,7 @@ const metricDescriptors = [
   { key: 'utilyzeDevices', field: 'averageUtilyzeDeviceCount', recordField: 'utilyzeDeviceCount', labelKey: 'analytics.metrics.utilyzeDevices', type: 'number' },
 ]
 
+export const gpuVendorKeys = ['nvidia', 'amd', 'apple', 'qualcomm']
 const bucketOptions = [1, 15, 60, 360, 1440]
 const pageSizeOptions = [10, 25, 50, 100]
 const refreshIntervals = [
@@ -87,7 +96,11 @@ function emptyFilters() {
     hostPlatform: '',
     gpuUuid: '',
     gpuModel: '',
+    gpuVendor: '',
     nvidiaAvailable: '',
+    amdAvailable: '',
+    appleGpuAvailable: '',
+    qualcommAvailable: '',
     ollamaAvailable: '',
     vllmAvailable: '',
     utilyzeAvailable: '',
@@ -137,7 +150,11 @@ function buildSearchFilter(filters, startInput, endInput, page, pageSize) {
     hostPlatform: cleanString(filters.hostPlatform),
     gpuUuid: cleanString(filters.gpuUuid),
     gpuModel: cleanString(filters.gpuModel),
+    gpuVendor: cleanString(filters.gpuVendor),
     nvidiaAvailable: parseBoolean(filters.nvidiaAvailable),
+    amdAvailable: parseBoolean(filters.amdAvailable),
+    appleGpuAvailable: parseBoolean(filters.appleGpuAvailable),
+    qualcommAvailable: parseBoolean(filters.qualcommAvailable),
     ollamaAvailable: parseBoolean(filters.ollamaAvailable),
     vllmAvailable: parseBoolean(filters.vllmAvailable),
     utilyzeAvailable: parseBoolean(filters.utilyzeAvailable),
@@ -160,9 +177,11 @@ function buildRollupRequest(filters, startInput, endInput, bucketMinutes) {
   return {
     hostname: cleanString(filters.hostname),
     gpuUuid: cleanString(filters.gpuUuid),
+    gpuVendor: cleanString(filters.gpuVendor),
     startUtc: parseDateInput(startInput),
     endUtc: parseDateInput(endInput),
     bucketMinutes,
+    includeGpuVendorBreakdown: true,
     includeEmptyBuckets: true,
   }
 }
@@ -184,17 +203,85 @@ function formatMetric(value, type) {
     return value == null ? formatBytes(value) : `${formatBytes(value)}/s`
   }
 
+  if (type === 'megabytes') {
+    return value == null ? formatBytes(value) : formatBytes(value * 1024 * 1024)
+  }
+
+  if (type === 'thermalState') {
+    if (value == null) {
+      return formatNumber(value)
+    }
+
+    return i18n.t(`thermalState.${thermalStateOrder[Math.max(0, Math.min(3, Math.round(value)))]}`)
+  }
+
   return formatNumber(value, { maximumFractionDigits: 2 })
 }
 
-function weightedAverage(buckets, field) {
+export function vendorValue(bucket, vendor, field) {
+  const value = bucket?.gpuVendors?.[vendor]?.[field]
+  return value == null || Number.isNaN(value) ? null : value
+}
+
+export function vendorsWithData(buckets, field) {
+  return gpuVendorKeys.filter((vendor) => buckets.some((bucket) => vendorValue(bucket, vendor, field) != null))
+}
+
+export function chartSeries(descriptor, buckets) {
+  if (!descriptor.vendorField) {
+    return [{ key: 'all', value: (bucket) => bucket[descriptor.field] }]
+  }
+
+  const allowed = descriptor.vendors || gpuVendorKeys
+  const vendorSeries = vendorsWithData(buckets, descriptor.vendorField)
+    .filter((vendor) => allowed.includes(vendor))
+    .map((vendor) => ({ key: vendor, value: (bucket) => vendorValue(bucket, vendor, descriptor.vendorField) }))
+
+  if (!descriptor.field) {
+    return vendorSeries
+  }
+
+  const all = { key: 'all', value: (bucket) => bucket[descriptor.field] }
+  if (vendorSeries.length > 1) {
+    return [all, ...vendorSeries]
+  }
+
+  return vendorSeries.length === 1 ? vendorSeries : [all]
+}
+
+export function descriptorAvailable(descriptor, buckets) {
+  if (!descriptor.vendors) {
+    return true
+  }
+
+  return vendorsWithData(buckets, descriptor.vendorField).some((vendor) => descriptor.vendors.includes(vendor))
+}
+
+export function weightedVendorAverage(buckets, vendor, field) {
+  let total = 0
+  let count = 0
+
+  buckets.forEach((bucket) => {
+    const entry = bucket?.gpuVendors?.[vendor]
+    const value = entry?.[field]
+    const sampleCount = entry?.sampleCount || 0
+    if (value != null && !Number.isNaN(value) && sampleCount > 0) {
+      total += value * sampleCount
+      count += sampleCount
+    }
+  })
+
+  return count > 0 ? total / count : null
+}
+
+export function weightedAverage(buckets, field) {
   let total = 0
   let count = 0
 
   buckets.forEach((bucket) => {
     const value = bucket[field]
     const sampleCount = bucket.sampleCount || 0
-    if (value != null && sampleCount > 0) {
+    if (value != null && !Number.isNaN(value) && sampleCount > 0) {
       total += value * sampleCount
       count += sampleCount
     }
@@ -305,9 +392,31 @@ function StateBox({ title, body }) {
   )
 }
 
-function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, sampleLabel, timeLabel }) {
+function seriesLabel(series, t) {
+  return series.key === 'all' ? t('labels.allGpus') : t(`vendors.${series.key}`)
+}
+
+function buildSegments(points) {
+  const segments = []
+  let current = []
+  points.forEach((point) => {
+    if (point.value == null) {
+      if (current.length > 0) segments.push(current)
+      current = []
+      return
+    }
+
+    current.push(point)
+  })
+
+  if (current.length > 0) segments.push(current)
+  return segments
+}
+
+export function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, sampleLabel, timeLabel }) {
   const { t } = useTranslation()
-  const [hoveredPoint, setHoveredPoint] = useState(null)
+  const [hoveredIndex, setHoveredIndex] = useState(null)
+  const [hiddenSeries, setHiddenSeries] = useState({})
   const width = 920
   const height = 292.5
   const padLeft = 64
@@ -316,54 +425,86 @@ function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, samp
   const padBottom = 40
   const plotWidth = width - padLeft - padRight
   const plotHeight = height - padTop - padBottom
-  const values = buckets.map((bucket) => bucket[descriptor.field]).filter((value) => value != null)
+  const series = chartSeries(descriptor, buckets)
+  const multiSeries = Boolean(descriptor.vendorField)
+  const visibleSeries = series.filter((item) => !hiddenSeries[item.key])
+  const values = []
+  visibleSeries.forEach((item) => buckets.forEach((bucket) => {
+    const value = item.value(bucket)
+    if (value != null) values.push(value)
+  }))
   const hasData = buckets.length > 0 && values.length > 0
-  const maxValue = values.length > 0 ? Math.max(...values, 1) : 1
-  const yTickCount = hasData ? 5 : 2
+  const maxValue = descriptor.type === 'thermalState' ? 3 : (values.length > 0 ? Math.max(...values, 1) : 1)
+  const yTickCount = descriptor.type === 'thermalState' ? 4 : (hasData ? 5 : 2)
   const yTicks = Array.from({ length: yTickCount }, (_, index) => {
     const ratio = yTickCount === 1 ? 0 : index / (yTickCount - 1)
-    const value = maxValue * (1 - ratio)
     return {
-      value,
+      value: maxValue * (1 - ratio),
       y: padTop + ratio * plotHeight,
     }
   })
-  const points = buckets.map((bucket, index) => {
-    const divisor = Math.max(1, buckets.length - 1)
-    const value = bucket[descriptor.field] == null ? 0 : bucket[descriptor.field]
-    const x = padLeft + (index / divisor) * plotWidth
-    const y = padTop + plotHeight - (value / maxValue) * plotHeight
-    return { x, y, value, bucket }
+  const divisor = Math.max(1, buckets.length - 1)
+  const xFor = (index) => padLeft + (index / divisor) * plotWidth
+  const yFor = (value) => padTop + plotHeight - (value / maxValue) * plotHeight
+  const plotted = visibleSeries.map((item) => {
+    const points = buckets.map((bucket, index) => {
+      const raw = item.value(bucket)
+      const value = raw == null ? (multiSeries ? null : 0) : raw
+      return { x: xFor(index), y: value == null ? null : yFor(value), value, bucket }
+    })
+    return { ...item, points, segments: buildSegments(points) }
   })
-  const hoverZones = points.map((point, index) => {
-    const previousX = index === 0 ? padLeft : (points[index - 1].x + point.x) / 2
-    const nextX = index === points.length - 1 ? padLeft + plotWidth : (point.x + points[index + 1].x) / 2
-    return {
-      point,
-      x: previousX,
-      width: nextX - previousX,
-    }
+  const hoverZones = buckets.map((bucket, index) => {
+    const x = xFor(index)
+    const previousX = index === 0 ? padLeft : (xFor(index - 1) + x) / 2
+    const nextX = index === buckets.length - 1 ? padLeft + plotWidth : (x + xFor(index + 1)) / 2
+    return { index, x: previousX, width: nextX - previousX }
   })
-  const polyline = points.map((point) => `${point.x},${point.y}`).join(' ')
-  const area = `${padLeft},${padTop + plotHeight} ${polyline} ${padLeft + plotWidth},${padTop + plotHeight}`
   const firstBucket = buckets[0]
   const lastBucket = buckets[buckets.length - 1]
-  const tooltipRows = hoveredPoint ? buildTooltipRows(hoveredPoint, descriptor, t) : []
+  const hoveredBucket = hoveredIndex == null ? null : buckets[hoveredIndex]
+  const hoveredX = hoveredIndex == null ? 0 : xFor(hoveredIndex)
+  const primaryPoint = hoveredIndex == null ? null : plotted.map((item) => item.points[hoveredIndex]).find((point) => point && point.value != null) || null
+  const seriesRows = hoveredBucket && multiSeries
+    ? plotted.map((item) => `${seriesLabel(item, t)}: ${formatMetric(item.points[hoveredIndex].value, descriptor.type)}`)
+    : []
+  const tooltipRows = hoveredBucket && primaryPoint ? [...seriesRows, ...buildTooltipRows(primaryPoint, descriptor, t)] : seriesRows
   const tooltipWidth = 300
-  const tooltipHeight = 68 + tooltipRows.length * 15
-  const tooltipX = hoveredPoint
-    ? (hoveredPoint.x + tooltipWidth + 14 > width - padRight ? hoveredPoint.x - tooltipWidth - 14 : hoveredPoint.x + 14)
+  const tooltipHeight = 68 + tooltipRows.length * 15 - (multiSeries ? 15 : 0)
+  const anchorY = primaryPoint?.y ?? padTop + plotHeight / 2
+  const tooltipX = hoveredBucket
+    ? (hoveredX + tooltipWidth + 14 > width - padRight ? hoveredX - tooltipWidth - 14 : hoveredX + 14)
     : 0
-  const tooltipY = hoveredPoint
-    ? Math.min(Math.max(padTop + 6, hoveredPoint.y - 36), height - padBottom - tooltipHeight - 6)
+  const tooltipY = hoveredBucket
+    ? Math.min(Math.max(padTop + 6, anchorY - 36), height - padBottom - tooltipHeight - 6)
     : 0
+
+  function toggleSeries(key) {
+    setHiddenSeries((current) => ({ ...current, [key]: !current[key] }))
+  }
 
   return (
     <div className="chart-scroll">
+      {multiSeries && series.length > 0 ? (
+        <div className="chart-legend" role="group" aria-label={t('analytics.legendLabel')}>
+          {series.map((item) => (
+            <button
+              aria-pressed={!hiddenSeries[item.key]}
+              className={`chart-legend-item ${hiddenSeries[item.key] ? 'muted' : ''}`.trim()}
+              key={item.key}
+              onClick={() => toggleSeries(item.key)}
+              type="button"
+            >
+              <i className={`chart-legend-swatch series-${item.key}`} />
+              {seriesLabel(item, t)}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <svg
         aria-label={label}
         className="rollup-chart"
-        onMouseLeave={() => setHoveredPoint(null)}
+        onMouseLeave={() => setHoveredIndex(null)}
         role="img"
         viewBox={`0 0 ${width} ${height}`}
       >
@@ -379,18 +520,29 @@ function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, samp
         ))}
         {hasData ? (
           <>
-            <polygon className="chart-area" points={area} />
-            <polyline className="chart-line" points={polyline} />
-            {points.map((point) => (
-              <circle className="chart-point" cx={point.x} cy={point.y} key={`${point.bucket.bucketStartUtc}-${point.x}`} r="1.4" />
+            {plotted.map((item) => (
+              <g className={`chart-series series-${item.key}`} key={item.key}>
+                {!multiSeries && item.segments.length > 0 ? (
+                  <polygon
+                    className="chart-area"
+                    points={`${padLeft},${padTop + plotHeight} ${item.points.map((point) => `${point.x},${point.y}`).join(' ')} ${padLeft + plotWidth},${padTop + plotHeight}`}
+                  />
+                ) : null}
+                {item.segments.map((segment) => (
+                  <polyline className="chart-line" key={`${item.key}-${segment[0].x}`} points={segment.map((point) => `${point.x},${point.y}`).join(' ')} />
+                ))}
+                {item.points.filter((point) => point.value != null).map((point) => (
+                  <circle className="chart-point" cx={point.x} cy={point.y} key={`${item.key}-${point.bucket.bucketStartUtc}-${point.x}`} r="1.4" />
+                ))}
+              </g>
             ))}
             {hoverZones.map((zone) => (
               <rect
                 className="chart-hover-target"
                 height={plotHeight}
-                key={`${zone.point.bucket.bucketStartUtc}-${zone.x}`}
-                onMouseEnter={() => setHoveredPoint(zone.point)}
-                onMouseMove={() => setHoveredPoint(zone.point)}
+                key={`${zone.index}-${zone.x}`}
+                onMouseEnter={() => setHoveredIndex(zone.index)}
+                onMouseMove={() => setHoveredIndex(zone.index)}
                 width={zone.width}
                 x={zone.x}
                 y={padTop}
@@ -408,19 +560,24 @@ function RollupChart({ buckets, descriptor, emptyLabel, label, metricLabel, samp
             {emptyLabel}
           </text>
         )}
-        {hoveredPoint ? (
+        {hoveredBucket && hasData ? (
           <g className="chart-tooltip" pointerEvents="none">
-            <line className="chart-tooltip-line" x1={hoveredPoint.x} x2={hoveredPoint.x} y1={padTop} y2={padTop + plotHeight} />
-            <circle className="chart-active-point" cx={hoveredPoint.x} cy={hoveredPoint.y} r="2.25" />
+            <line className="chart-tooltip-line" x1={hoveredX} x2={hoveredX} y1={padTop} y2={padTop + plotHeight} />
+            {plotted.map((item) => {
+              const point = item.points[hoveredIndex]
+              return point && point.value != null ? (
+                <circle className={`chart-active-point series-${item.key}`} cx={point.x} cy={point.y} key={item.key} r="2.25" />
+              ) : null
+            })}
             <rect className="chart-tooltip-box" height={tooltipHeight} rx="6" width={tooltipWidth} x={tooltipX} y={tooltipY} />
             <text className="chart-tooltip-text" x={tooltipX + 10} y={tooltipY + 16}>
               <tspan className="chart-tooltip-title">{metricLabel}</tspan>
-              <tspan x={tooltipX + 10} dy="15">{formatMetric(hoveredPoint.value, descriptor.type)}</tspan>
+              {!multiSeries ? <tspan x={tooltipX + 10} dy="15">{formatMetric(primaryPoint?.value, descriptor.type)}</tspan> : null}
               {tooltipRows.map((row, index) => (
                 <tspan key={`${row}-${index}`} x={tooltipX + 10} dy="15">{row}</tspan>
               ))}
-              <tspan x={tooltipX + 10} dy="15">{`${timeLabel}: ${formatDateTimeWithSeconds(hoveredPoint.bucket.bucketStartUtc)}`}</tspan>
-              <tspan x={tooltipX + 10} dy="15">{`${sampleLabel}: ${formatNumber(hoveredPoint.bucket.sampleCount || 0)}`}</tspan>
+              <tspan x={tooltipX + 10} dy="15">{`${timeLabel}: ${formatDateTimeWithSeconds(hoveredBucket.bucketStartUtc)}`}</tspan>
+              <tspan x={tooltipX + 10} dy="15">{`${sampleLabel}: ${formatNumber(hoveredBucket.sampleCount || 0)}`}</tspan>
             </text>
           </g>
         ) : null}
@@ -772,7 +929,7 @@ export function TelemetryAnalyticsView() {
             <label>
               <span>{t('analytics.filters.metric')}</span>
               <select className="select" onChange={(event) => setMetricKey(event.target.value)} value={metricKey}>
-                {metricDescriptors.map((item) => (
+                {metricDescriptors.filter((item) => item.key === metricKey || descriptorAvailable(item, buckets)).map((item) => (
                   <option key={item.key} value={item.key}>
                     {t(item.labelKey)}
                   </option>
@@ -787,6 +944,13 @@ export function TelemetryAnalyticsView() {
           <StatCard label={t('analytics.cards.cpu')} value={formatPercent(averageCpu)} />
           <StatCard label={t('analytics.cards.memory')} value={formatPercent(averageMemory)} />
           <StatCard label={t('analytics.cards.gpu')} value={formatPercent(averageGpu)} />
+          {gpuVendorKeys.filter((vendor) => vendorsWithData(buckets, 'averageUtilizationPercent').includes(vendor)).map((vendor) => (
+            <StatCard
+              key={vendor}
+              label={t('analytics.cards.vendorGpu', { vendor: t(`vendors.${vendor}`) })}
+              value={formatPercent(weightedVendorAverage(buckets, vendor, 'averageUtilizationPercent'))}
+            />
+          ))}
           <StatCard label={t('analytics.cards.gpuTemperature')} value={formatMetric(averageGpuTemperature, 'temperature')} />
           <StatCard label={t('analytics.cards.latest')} value={latestRecord ? formatDateTimeWithSeconds(latestRecord.persistedUtc) : formatDateTime(null)} />
         </div>
@@ -833,10 +997,19 @@ export function TelemetryAnalyticsView() {
               <span>{t('analytics.filters.gpuModel')}</span>
               <input className="input" onChange={(event) => updateFilter('gpuModel', event.target.value)} value={filters.gpuModel} />
             </label>
+            <label>
+              <span>{t('analytics.filters.gpuVendor')}</span>
+              <select className="select" data-testid="gpu-vendor-filter" onChange={(event) => updateFilter('gpuVendor', event.target.value)} value={filters.gpuVendor}>
+                <option value="">{t('analytics.options.any')}</option>
+                {gpuVendorKeys.map((vendor) => (
+                  <option key={vendor} value={vendor}>{t(`vendors.${vendor}`)}</option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="filter-grid compact">
-            {['nvidiaAvailable', 'ollamaAvailable', 'vllmAvailable', 'utilyzeAvailable'].map((name) => (
+            {['nvidiaAvailable', 'amdAvailable', 'appleGpuAvailable', 'qualcommAvailable', 'ollamaAvailable', 'vllmAvailable', 'utilyzeAvailable'].map((name) => (
               <label key={name}>
                 <span>{t(`analytics.filters.${name}`)}</span>
                 <select className="select" onChange={(event) => updateFilter(name, event.target.value)} value={filters[name]}>
@@ -904,6 +1077,7 @@ export function TelemetryAnalyticsView() {
                 <th>{t('analytics.table.platform')}</th>
                 <th>{t('analytics.table.cpu')}</th>
                 <th>{t('analytics.table.memory')}</th>
+                <th>{t('analytics.table.gpuVendor')}</th>
                 <th>{t('analytics.table.gpu')}</th>
                 <th>{t('analytics.table.gpuTemperature')}</th>
                 <th>{t('analytics.table.actions')}</th>
@@ -917,6 +1091,7 @@ export function TelemetryAnalyticsView() {
                   <td>{record.hostPlatform || formatNumber(null)}</td>
                   <td>{formatPercent(record.cpuUtilizationPercent)}</td>
                   <td>{formatPercent(record.memoryUtilizationPercent)}</td>
+                  <td>{record.gpuVendor ? t(`vendors.${record.gpuVendor}`) : formatNumber(null)}</td>
                   <td>{formatPercent(record.gpuAverageUtilizationPercent)}</td>
                   <td>{formatMetric(record.gpuAverageTemperatureCelsius, 'temperature')}</td>
                   <td>
@@ -928,7 +1103,7 @@ export function TelemetryAnalyticsView() {
               ))}
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan="8">{t('analytics.emptyTable')}</td>
+                  <td colSpan="9">{t('analytics.emptyTable')}</td>
                 </tr>
               ) : null}
             </tbody>

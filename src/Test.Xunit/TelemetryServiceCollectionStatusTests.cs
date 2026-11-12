@@ -33,7 +33,7 @@ namespace Test.Xunit
             components.MemoryTelemetryHandler = _ => CompleteAfterAsync(timeProvider, TimeSpan.FromMilliseconds(7), new MemoryTelemetry { TotalBytes = 1024, AvailableBytes = 256, UsedBytes = 768, UtilizationPercent = 75D });
             components.NetworkTelemetryHandler = _ => CompleteAfterAsync(timeProvider, TimeSpan.FromMilliseconds(8), new NetworkTelemetry { ActiveInterfaceCount = 1, TotalReceiveBytesPerSecond = 42D });
             components.DiskTelemetryHandler = _ => CompleteAfterAsync(timeProvider, TimeSpan.FromMilliseconds(9), new DiskTelemetry { ReadOperationsPerSecond = 11D });
-            components.GpuTelemetryHandler = _ => CompleteAfterAsync<GpuTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(10), new GpuTelemetry { Vendor = "NVIDIA", ExporterEndpoint = "http://gpu/metrics" });
+            components.NvidiaTelemetryHandler = _ => CompleteAfterAsync<NvidiaGpuTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(10), new NvidiaGpuTelemetry { Endpoint = "http://gpu/metrics", Devices = { new NvidiaGpuDeviceTelemetry { Model = "NVIDIA L40S" } } });
             components.OllamaTelemetryHandler = _ => CompleteAfterAsync<OllamaTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(11), new OllamaTelemetry { Available = true, BaseUrl = "http://ollama", Version = "0.9.1" });
             components.VllmTelemetryHandler = _ => CompleteAfterAsync<VllmTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(12), new VllmTelemetry { Available = true, MetricsEndpoint = "http://vllm/metrics" });
             components.UtilyzeTelemetryHandler = _ => CompleteAfterAsync<UtilyzeTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(13), new UtilyzeTelemetry { Available = true, Endpoint = "ws://utilyze/live" });
@@ -87,7 +87,7 @@ namespace Test.Xunit
             components.CpuTelemetryHandler = _ => CompleteAfterAsync(timeProvider, TimeSpan.FromMilliseconds(5), new CpuTelemetry { LogicalCoreCount = 16, UtilizationPercent = 22D });
             components.MemoryTelemetryHandler = _ => CompleteAfterAsync(timeProvider, TimeSpan.FromMilliseconds(5), new MemoryTelemetry { TotalBytes = 2048, AvailableBytes = 1024, UsedBytes = 1024, UtilizationPercent = 50D });
             components.NetworkTelemetryHandler = _ => CompleteAfterAsync(timeProvider, TimeSpan.FromMilliseconds(5), new NetworkTelemetry { ActiveInterfaceCount = 2 });
-            components.GpuTelemetryHandler = _ => Task.FromException<GpuTelemetry?>(new InvalidOperationException("GPU collector should not run when gpu=false."));
+            components.NvidiaTelemetryHandler = _ => Task.FromException<NvidiaGpuTelemetry?>(new InvalidOperationException("GPU collector should not run when gpu=false."));
 
             TelemetryService service = CreateService(settings, components, timeProvider);
             TelemetryRequestOptions requestOptions = TelemetryRequestParser.Parse("/v1/telemetry?cpu&memory&network&gpu=false");
@@ -133,7 +133,7 @@ namespace Test.Xunit
             components.Current.OllamaAvailable = false;
             components.Current.VllmAvailable = false;
             components.Current.UtilyzeAvailable = false;
-            components.GpuTelemetryHandler = _ => Task.FromException<GpuTelemetry?>(new InvalidOperationException("GPU collector should not run when unsupported."));
+            components.NvidiaTelemetryHandler = _ => Task.FromException<NvidiaGpuTelemetry?>(new InvalidOperationException("GPU collector should not run when unsupported."));
             components.OllamaTelemetryHandler = _ => Task.FromException<OllamaTelemetry?>(new InvalidOperationException("Ollama collector should not run when unsupported."));
             components.VllmTelemetryHandler = _ => Task.FromException<VllmTelemetry?>(new InvalidOperationException("vLLM collector should not run when unsupported."));
             components.UtilyzeTelemetryHandler = _ => Task.FromException<UtilyzeTelemetry?>(new InvalidOperationException("Utilyze collector should not run when unsupported."));
@@ -180,7 +180,7 @@ namespace Test.Xunit
             {
                 SectionStaleAfterMs = 5000
             };
-            components.GpuTelemetryHandler = _ => CompleteAfterAsync<GpuTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(12), null);
+            components.NvidiaTelemetryHandler = _ => CompleteAfterAsync<NvidiaGpuTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(12), null);
 
             TelemetryService service = CreateService(settings, components, timeProvider);
             TelemetryRequestOptions requestOptions = TelemetryRequestOptions.None();
@@ -214,12 +214,12 @@ namespace Test.Xunit
             TelemetryRequestOptions requestOptions = TelemetryRequestOptions.None();
             requestOptions.IncludeGpu = true;
 
-            components.GpuTelemetryHandler = _ => CompleteAfterAsync<GpuTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(15), new GpuTelemetry { Vendor = "NVIDIA" });
+            components.NvidiaTelemetryHandler = _ => CompleteAfterAsync<NvidiaGpuTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(15), new NvidiaGpuTelemetry { Devices = { new NvidiaGpuDeviceTelemetry() } });
             TelemetrySnapshot firstSnapshot = await service.GetSnapshotAsync(requestOptions, CancellationToken.None);
             DateTime? firstSuccessUtc = Assert.IsType<TelemetryCollectionMetadata>(firstSnapshot.Collection).Gpu.LastSuccessUtc;
 
             timeProvider.Advance(TimeSpan.FromMilliseconds(1500));
-            components.GpuTelemetryHandler = _ => CompleteAfterAsync<GpuTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(20), null);
+            components.NvidiaTelemetryHandler = _ => CompleteAfterAsync<NvidiaGpuTelemetry?>(timeProvider, TimeSpan.FromMilliseconds(20), null);
 
             TelemetrySnapshot secondSnapshot = await service.GetSnapshotAsync(requestOptions, CancellationToken.None);
 
@@ -282,18 +282,18 @@ namespace Test.Xunit
                     UtilizationPercent = 25D
                 });
 
-            components.GpuTelemetryHandler = _ => CompleteAfterAsync<GpuTelemetry?>(
+            components.NvidiaTelemetryHandler = _ => CompleteAfterAsync<NvidiaGpuTelemetry?>(
                 timeProvider,
                 TimeSpan.FromMilliseconds(5),
-                new GpuTelemetry
+                new NvidiaGpuTelemetry
                 {
-                    Vendor = "NVIDIA",
                     Devices =
                     {
-                        new GpuDeviceTelemetry
+                        new NvidiaGpuDeviceTelemetry
                         {
                             DeviceIndex = 0,
-                            Model = "NVIDIA GB10"
+                            Model = "NVIDIA GB10",
+                            UnifiedMemory = true
                         }
                     }
                 });
@@ -314,6 +314,9 @@ namespace Test.Xunit
         {
             return new TelemetryService(
                 settings,
+                components,
+                components,
+                components,
                 components,
                 components,
                 components,

@@ -1,6 +1,7 @@
 namespace RigMonitor.Core.Models
 {
     using System;
+    using System.Collections.Generic;
 
     /// <summary>
     /// Bucketized telemetry aggregate values.
@@ -166,5 +167,11 @@ namespace RigMonitor.Core.Models
         /// Average Utilyze device count.
         /// </summary>
         public double? AverageUtilyzeDeviceCount { get; set; } = null;
+
+
+        /// <summary>
+        /// Per-vendor GPU breakdown keyed by vendor (nvidia, amd, apple, qualcomm). Vendors with no data are omitted.
+        /// </summary>
+        public Dictionary<string, GpuVendorRollup>? GpuVendors { get; set; } = null;
     }
 }
